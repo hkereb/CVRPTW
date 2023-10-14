@@ -1,0 +1,3 @@
+C:/Users/hkere/CLionProjects/OK_ciezarowki/CVRP/cmake-build-debug/CMakeFiles/CVRP.dir
+C:/Users/hkere/CLionProjects/OK_ciezarowki/CVRP/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/hkere/CLionProjects/OK_ciezarowki/CVRP/cmake-build-debug/CMakeFiles/rebuild_cache.dir
