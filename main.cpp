@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <cmath>
+#include <iomanip>
 
 using namespace std;
 
@@ -15,30 +17,30 @@ public:
 
 //struktura wierzchołków
 struct vertex {
-    //nr wierzcholka (i=0 magazyn)
-    int i;
+    //nr wierzcholka (vertex_no=0 magazyn)
+    int vertex_no;
     //koordynaty
     int x;
     int y;
     //zapotrzebowanie na towar
-    int q;
+    int commodity_need;
     //początek i koniec okna
-    int e;
-    int l;
+    int window_start;
+    int window_end;
     //czas rozładunku
-    int d;
+    int unload_time;
 };
 
 //struktura pomocnicza do wczytywania pliku
-struct all_data {
+struct extracted_data {
     int vehicle_number;
     int capacity;
     vector<vertex> vertexes;
 };
 
 // Funkcja do wczytywania danych
-all_data readingData(string file_name) {
-    all_data temp;
+extracted_data readingData(string file_name) {
+    extracted_data temp;
     fstream example;
     example.open(file_name, ios::in);
     if (!example.good()) {
@@ -57,17 +59,17 @@ all_data readingData(string file_name) {
         if (line.find("CUSTOMER") != string::npos) {
             readingCustomerData = true;
         }
-        //jeżeli nie jest jeszcze na "CUSTOMER", odczytuje pierwsze all_data
+        //jeżeli nie jest jeszcze na "CUSTOMER", odczytuje pierwsze extracted_data
         else if (!readingCustomerData) {
             istringstream ss(line);
             ss >> temp.vehicle_number >> temp.capacity;
         }
-        //wczytaj all_data do vertexes
+        //wczytaj extracted_data do vertexes
         else {
             istringstream ss(line);
             vertex customer;
-            if (ss >> customer.i >> customer.x >> customer.y
-            >> customer.q >> customer.e >> customer.l >> customer.d) {
+            if (ss >> customer.vertex_no >> customer.x >> customer.y
+                   >> customer.commodity_need >> customer.window_start >> customer.window_end >> customer.unload_time) {
                 temp.vertexes.push_back(customer);
             }
         }
@@ -75,15 +77,36 @@ all_data readingData(string file_name) {
     example.close();
     return temp;
 }
+//obliczanie dystansu miedzy dwoma wierzchołkami (pitagoras)
+double distance (double x, double y, double a, double b) {
+    return sqrt(pow(x - a, 2) + pow(y - b, 2));
+}
 
 int main() {
-    all_data data_set = readingData("cvrptw1.txt");
+    extracted_data data_set = readingData("cvrptw1.txt");
     cout << data_set.vehicle_number << " " << data_set.capacity << endl;
     int row_no = 0;
-    cout << data_set.vertexes[row_no].i << " " << data_set.vertexes[row_no].x
-         << " " << data_set.vertexes[row_no].y << " " << data_set.vertexes[row_no].q << " "
-         << data_set.vertexes[row_no].e << " " << data_set.vertexes[row_no].l << " "
-         << data_set.vertexes[row_no].d << endl;
+    cout << data_set.vertexes[row_no].vertex_no << " " << data_set.vertexes[row_no].x
+         << " " << data_set.vertexes[row_no].y << " " << data_set.vertexes[row_no].commodity_need << " "
+         << data_set.vertexes[row_no].window_start << " " << data_set.vertexes[row_no].window_end << " "
+         << data_set.vertexes[row_no].unload_time << endl;
+    cout << endl;
+
+    double distance_matrix[data_set.vertexes.size()][data_set.vertexes.size()];
+    for (int w = 0; w < data_set.vertexes.size(); w++) {
+        for (int k = 0; k < data_set.vertexes.size(); k++) {
+            if (w == k) {
+                distance_matrix[w][k] = 0;
+                cout << distance_matrix[w][k] << " ";
+                continue;
+            }
+            distance_matrix[w][k] = distance(data_set.vertexes[w].x, data_set.vertexes[w].y,
+                                             data_set.vertexes[k].x, data_set.vertexes[k].y);
+            cout << distance_matrix[w][k] << " ";
+        }
+        cout << endl;
+    }
+
     return 0;
 }
 
