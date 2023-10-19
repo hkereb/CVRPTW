@@ -92,18 +92,35 @@ int main() {
          << data_set.vertexes[row_no].unload_time << endl;
     cout << endl;
 
-    double distance_matrix[data_set.vertexes.size()][data_set.vertexes.size()];
+//    double distance_matrix[data_set.vertexes.size()][data_set.vertexes.size()];
+//    for (int w = 0; w < data_set.vertexes.size(); w++) {
+//        for (int k = 0; k < data_set.vertexes.size(); k++) {
+//            if (w == k) {
+//                distance_matrix[w][k] = 0;
+//                cout << distance_matrix[w][k] << " ";
+//                continue;
+//            }
+//            distance_matrix[w][k] = distance(data_set.vertexes[w].x, data_set.vertexes[w].y,
+//                                             data_set.vertexes[k].x, data_set.vertexes[k].y);
+//            cout << distance_matrix[w][k] << " ";
+//        }
+//        cout << endl;
+//    }
+    vector<vector<double>> distance_matrix;
+
     for (int w = 0; w < data_set.vertexes.size(); w++) {
+        vector<double> temp;
         for (int k = 0; k < data_set.vertexes.size(); k++) {
             if (w == k) {
-                distance_matrix[w][k] = 0;
-                cout << distance_matrix[w][k] << " ";
+                temp.push_back(0);
+                cout << temp[k] << " ";
                 continue;
             }
-            distance_matrix[w][k] = distance(data_set.vertexes[w].x, data_set.vertexes[w].y,
-                                             data_set.vertexes[k].x, data_set.vertexes[k].y);
-            cout << distance_matrix[w][k] << " ";
+            temp.push_back(distance(data_set.vertexes[w].x, data_set.vertexes[w].y,
+                                    data_set.vertexes[k].x, data_set.vertexes[k].y));
+            cout << temp[k] << " ";
         }
+        distance_matrix.push_back(temp);
         cout << endl;
     }
 
