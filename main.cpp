@@ -5,15 +5,11 @@
 #include <sstream>
 #include <cmath>
 #include <iomanip>
+#include <cstdlib>
+#include <regex>
+#include <random>
 
 using namespace std;
-
-class truck {
-
-public:
-    // inicjalizacja
-
-};
 
 //struktura wierzchołków
 struct vertex {
@@ -29,6 +25,14 @@ struct vertex {
     int window_end;
     //czas rozładunku
     int unload_time;
+    double value;
+};
+
+struct truck {
+    int vehicle_no;
+    int how_much_left;
+    double distance;
+    vector<vertex> visited;
 };
 
 //struktura pomocnicza do wczytywania pliku
@@ -81,8 +85,68 @@ extracted_data readingData(string file_name) {
 double distance (double x, double y, double a, double b) {
     return sqrt(pow(x - a, 2) + pow(y - b, 2));
 }
+double roundToFiveDecimalPlaces(double distance) {
+    //dystans zawsze z 5 miejscami po przecinku
+    //cout << fixed << setprecision(5) << distance << endl;
+    return distance;
+}
 
+//im mniejsze value tym wieksze prawdopodobienstwo na wylosowanie przez GRASP
+double countValue(vertex current, vertex next, double current_time) {
+    double value = distance(current.x, current.y, next.x, next.y)
+            + next.unload_time + (next.window_start - current_time);
+
+    return value;
+}
+struct by_value {
+    inline bool operator() (const vertex& a, const vertex& b)
+    {
+        return (a.value < b.value);
+    }
+};
+//vertex chooseVertex(const vector<vertex>& candidate_list) {
+//    random_device rd;
+//    default_random_engine generator(rd());
+//
+//    vector<double> weights;
+//    for (const vertex& v : candidate_list) {
+//        weights.push_back(1.0 / v.value);
+//    }
+//
+//    discrete_distribution<int> distribution(weights.begin(), weights.end());
+//
+//    int selected_index = distribution(generator);
+//
+//    return candidate_list[selected_index];
+//}
+int chooseVertex(const vector<vertex>& candidate_list) {
+    random_device rd;
+    default_random_engine generator(rd());
+
+    vector<double> weights;
+    for (const vertex& v : candidate_list) {
+        weights.push_back(1.0 / v.value);
+    }
+
+    discrete_distribution<int> distribution(weights.begin(), weights.end());
+
+    int selected_index = distribution(generator);
+
+
+    return selected_index;
+}
+void updateTruckInfoPostShipment (truck& truck, vertex previous, vertex current) {
+    truck.visited.push_back(current);
+    truck.how_much_left = (truck.how_much_left) - (current.commodity_need);
+    double distance_pc = distance(current.x, current.y, previous.x, previous.y);
+    truck.distance = truck.distance + distance_pc; //tutaj dopiero przyjechał, czy czeka?
+    double waiting_time = current.window_start - truck.distance;
+    truck.distance = truck.distance + waiting_time + current.unload_time;
+}
 int main() {
+    srand(time(0));
+
+    cout.precision(5);
     extracted_data data_set = readingData("cvrptw1.txt");
     cout << data_set.vehicle_number << " " << data_set.capacity << endl;
     int row_no = 0;
@@ -91,21 +155,7 @@ int main() {
          << data_set.vertexes[row_no].window_start << " " << data_set.vertexes[row_no].window_end << " "
          << data_set.vertexes[row_no].unload_time << endl;
     cout << endl;
-
-//    double distance_matrix[data_set.vertexes.size()][data_set.vertexes.size()];
-//    for (int w = 0; w < data_set.vertexes.size(); w++) {
-//        for (int k = 0; k < data_set.vertexes.size(); k++) {
-//            if (w == k) {
-//                distance_matrix[w][k] = 0;
-//                cout << distance_matrix[w][k] << " ";
-//                continue;
-//            }
-//            distance_matrix[w][k] = distance(data_set.vertexes[w].x, data_set.vertexes[w].y,
-//                                             data_set.vertexes[k].x, data_set.vertexes[k].y);
-//            cout << distance_matrix[w][k] << " ";
-//        }
-//        cout << endl;
-//    }
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////
     vector<vector<double>> distance_matrix;
 
     for (int w = 0; w < data_set.vertexes.size(); w++) {
@@ -113,15 +163,55 @@ int main() {
         for (int k = 0; k < data_set.vertexes.size(); k++) {
             if (w == k) {
                 temp.push_back(0);
-                cout << temp[k] << " ";
+                //cout << temp[k] << " ";
                 continue;
             }
             temp.push_back(distance(data_set.vertexes[w].x, data_set.vertexes[w].y,
                                     data_set.vertexes[k].x, data_set.vertexes[k].y));
-            cout << temp[k] << " ";
+            //cout << temp[k] << " ";
         }
         distance_matrix.push_back(temp);
-        cout << endl;
+        //cout << endl;
+    }
+//    the delivery time for a customer can be defined as the maximum of:
+//    -the earliest allowed delivery time for this customer
+//    -the departure time from the previous customer plus the travel time to the current customer
+
+
+    //     step 1 dla graspa
+
+    int previous_vertex = 0;
+    int current_vertex_no = 0; //magazyn
+    vertex full_previous_vertex = data_set.vertexes[0];
+    vertex full_current_vertex = data_set.vertexes[0];
+    truck current_truck;
+    current_truck.vehicle_no = 0;
+    current_truck.distance = 0;
+    current_truck.how_much_left = data_set.capacity;
+    current_truck.visited.push_back(data_set.vertexes[current_vertex_no]);
+    double current_time = 0; //czas startowy
+    vector<vertex> candidate_list = data_set.vertexes;
+    candidate_list.erase(candidate_list.begin());
+    vector<truck> trucks;
+    trucks.push_back(current_truck);
+    extracted_data data_set_copy = data_set;
+    while(!candidate_list.empty() || (trucks.size() > data_set.vehicle_number)) {
+
+        for (int i = 0; i < candidate_list.size(); i++) {
+            candidate_list[i].value = countValue(data_set.vertexes[current_vertex_no], candidate_list[i], 0);
+        }
+        sort(candidate_list.begin(), candidate_list.end(), by_value());
+        current_vertex_no = chooseVertex(candidate_list);
+        full_current_vertex = data_set_copy.vertexes[candidate_list[current_vertex_no].vertex_no];
+
+        if (current_truck.how_much_left < full_current_vertex.commodity_need) {
+            current_vertex_no = 0;
+            previous_vertex = 0;
+            trucks.push_back(current_truck);
+            continue;
+        }
+        updateTruckInfoPostShipment(current_truck, full_previous_vertex, full_current_vertex);
+        //candidate_list.erase(current_vertex_no);
     }
 
     return 0;
@@ -141,4 +231,12 @@ int main() {
  .   1     0        10         10       200         300         10
  .   2     0        20         10       10          120         10
  .   3     0        30         10       20          180         10
+ */
+
+
+/*
+ * liczbatras(Liczba ciężarówek) całkowitadługośćwszystkichtras(Droga+Rozładunek+Oczekiwanie)\n
+    nr_1._wierzchołka_w_1.trasie    nr_2._wierzchołka_w_1.trasie ...\n, <- Wierzchołki dowiedzone przez ciężarówke np.: 0 -> 2 -> 4 -> 3 -> 1 -> 0
+    ...
+    nr_1._wierzchołka_w_ntej.trasie nr_2._wierzchołka_w_ntej.trasie ...\n
  */
