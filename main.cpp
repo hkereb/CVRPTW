@@ -294,3 +294,36 @@ int main() {
     ...
     nr_1._wierzchołka_w_ntej.trasie nr_2._wierzchołka_w_ntej.trasie ...\n
  */
+
+
+//m2kvrptw-0.txt ((ciężarówki)≤1048, (koszt)≤4520131.2)
+//1 objazd/ciężarówka, koszt 90
+
+
+
+
+//cvrptw2
+//
+//VEHICLE
+//NUMBER     CAPACITY
+//10        30
+//
+//CUSTOMER
+//        CUST NO.  XCOORD.  YCOORD.    DEMAND   READY TIME  DUE DATE   SERVICE TIME
+//
+//0     0        0          0        0           100          0
+//1     0        10         10       10          300         10
+//2     0        20         10       20          120         10
+//3     0        30         10       30          180         10
+
+
+
+//NOTATNIK BY ANTEK
+/*
+ * ZROBIONE - Brak uwzględnienia w przyjeździe ciężarówki po czasie L do wierzchołka
+ * Wyplucie ostatecznego wyniku po 3 lub 5 minutach
+ * Zamkniecie pliku
+ * na etapie porównywania rozwiązań w poszukiwaniu najlepszego należy zingnorować rozwiązanie któego ostatnia ciężarówka ma wartość -1 w dystans (warunek, że jak wszystkie są -1)
+ * Liczenie ile jest -1 i porównanie z ilością rozwiązań, jak tyle samo to rozwiązania nie ma
+ *
+ */
