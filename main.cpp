@@ -353,12 +353,8 @@ int main() {
     nr_1._wierzchołka_w_ntej.trasie nr_2._wierzchołka_w_ntej.trasie ...\n
  */
 
-
 //m2kvrptw-0.txt ((ciężarówki)≤1048, (koszt)≤4520131.2)
 //1 objazd/ciężarówka, koszt 90
-
-
-
 
 //cvrptw2
 //
