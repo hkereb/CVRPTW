@@ -378,6 +378,9 @@ int main() {
  * Wyplucie ostatecznego wyniku po 3 lub 5 minutach
  * Zamkniecie pliku
  * na etapie porównywania rozwiązań w poszukiwaniu najlepszego należy zingnorować rozwiązanie któego ostatnia ciężarówka ma wartość -1 w dystans (warunek, że jak wszystkie są -1)
- * Liczenie ile jest -1 i porównanie z ilością rozwiązań, jak tyle samo to rozwiązania nie ma
+ *           Liczenie ile jest -1 i porównanie z ilością rozwiązań, jak tyle samo to rozwiązania nie ma
+ * Obsluga bledow
+ * usunac z graspa value aby zdobyc prawdziwie losowe rozwiazanie
+ *
  *
  */
