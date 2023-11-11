@@ -204,7 +204,7 @@ solution SingleGRASP (extracted_data data_set, vector<vector<double>> distance_m
             //wyznaczenie top x% kandydatow z ktorych bedzie losowany kolejny klient
             int top_percent = 20;
             int last_top_id = candidate_list.size() * top_percent / 100;
-            vector<vertex> top_candidates(candidate_list.begin(), candidate_list.begin() + last_top_id);
+            vector<vertex> top_candidates(candidate_list.begin(), candidate_list.begin() + last_top_id + 1);
 
             //losowanie kolejnego klienta
             current_vertex_no = chooseVertex(top_candidates);
@@ -303,7 +303,7 @@ int main() {
     srand(time(0));
 
     cout.precision(5);
-    extracted_data data_set = readingData("C101.txt");
+    extracted_data data_set = readingData("cvrptw1.txt");
     //cout << data_set.vehicle_number << " " << data_set.capacity << endl;
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
@@ -319,11 +319,18 @@ int main() {
 //    vector<solution> solutions = GRASP(data_set, distance_matrix, time);
 //    cout << solutions.size() << endl;
 //    analyzeAndDisplaySolutions(solutions);
-    for (int z = 0; z < 5000; z++) {
-        solution temp = SingleGRASP(data_set, distance_matrix);
-        if (temp.acceptable == true) {
-            cout << temp.acceptable << " " << temp.truck_no << " " << temp.final_distance << endl;
+    for (int z = 0; z < 10; z++) {
+        solution temp_sol = SingleGRASP(data_set, distance_matrix);
+        if (temp_sol.acceptable == true) {
+            cout << temp_sol.truck_no << " " << temp_sol.final_distance << endl;
+            for (const auto& truck : temp_sol.trucks) {
+                for (const auto& vertex : truck.visited) {
+                    cout << vertex.vertex_no << " ";
+                }
+            }
+            cout << endl;
         }
+        cout << endl;
     }
 
     return 0;
