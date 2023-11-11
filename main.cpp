@@ -112,20 +112,28 @@ double roundToFiveDecimalPlaces(double distance) {
 }
 
 //im mniejsze value tym wieksze prawdopodobienstwo na wylosowanie przez GRASP
-double countValue(vector<vector<double>> distance_matrix, vertex previous, vertex next, double current_time) {
-//    double value = distance(previous.x, previous.y, next.x, next.y)
-//            + next.unload_time + (next.window_start - current_time);
-    double value = distance_matrix[previous.vertex_no][next.vertex_no]
-                   + next.unload_time + (next.window_start - current_time);
-
-    return value;
-}
 //double countValue(vector<vector<double>> distance_matrix, vertex previous, vertex next, double current_time) {
-//    double value = 0.2 * distance_matrix[previous.vertex_no][next.vertex_no] + 0.2 * next.unload_time
-//            + 0.8 * (fabs(current_time - next.window_end) - fabs(current_time - next.window_start));
+//    double value = distance_matrix[previous.vertex_no][next.vertex_no]
+//                   + next.unload_time + (next.window_start - current_time);
 //
 //    return value;
 //}
+double countValue(vector<vector<double>> distance_matrix, vertex& previous, vertex& next, truck& current_truck) {
+    int capacity_violation = 0;
+    if (current_truck.how_much_left < next.commodity_need) {
+        capacity_violation = 1;
+    }
+    int window_end_violation = 0;
+    if (current_truck.distance + distance_matrix[previous.vertex_no][next.vertex_no]
+        > next.window_end) {
+        window_end_violation = 1;
+    }
+    double value = (0.005 * next.unload_time) + (0.005 * distance_matrix[previous.vertex_no][next.vertex_no])
+     + (0.3 * capacity_violation) + (0.4 * window_end_violation) + (0.8 * (next.window_start - current_truck.distance));
+
+    return value;
+}
+
 struct by_value {
     inline bool operator() (const vertex& a, const vertex& b)
     {
@@ -197,7 +205,7 @@ solution SingleGRASP (extracted_data data_set, vector<vector<double>> distance_m
         else {
             for (int i = 0; i < candidate_list.size(); i++) {
                 //candidate_list[i].value = countValue(data_set.vertexes[current_vertex_no], candidate_list[i], current_truck.distance);
-                candidate_list[i].value = countValue(distance_matrix, full_previous_vertex, candidate_list[i], current_truck.distance);
+                candidate_list[i].value = countValue(distance_matrix, full_previous_vertex, candidate_list[i], current_truck);
             }
             sort(candidate_list.begin(), candidate_list.end(), by_value());
 
@@ -286,17 +294,20 @@ void analyzeAndDisplaySolutions (vector<solution>& solutions) {
         if (!solutions[i].acceptable) {
             counter++;
         }
+        if (counter == solutions.size()) {
+            cout << "No solution has been found";
+        }
         else {
             cout << solutions[i].truck_no << " " << solutions[i].final_distance << endl;
-            //todo wyswietlic visited
+            for (const auto& truck : solutions[i].trucks) {
+                for (const auto& vertex : truck.visited) {
+                    cout << vertex.vertex_no << " ";
+                }
+                cout << endl;
+            }
+            cout << endl;
         }
     }
-//    if (counter == solutions.size()) {
-//        cout << "No solution has been found";
-//    }
-}
-void displayVisited () {
-    //todo visited
 }
 
 int main() {
@@ -308,50 +319,34 @@ int main() {
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
-    // Wartości zmiennej time:
-    // 1min = 60s
-    // 2min = 120s
-    // 3min = 180s
-    // 4min = 240s
-    // 5min = 300s
+    int time = 1;
+    vector<solution> solutions = GRASP(data_set, distance_matrix, time);
+    cout << solutions.size() << endl;
+    analyzeAndDisplaySolutions(solutions);
 
-//    int time = 10;
-//    vector<solution> solutions = GRASP(data_set, distance_matrix, time);
-//    cout << solutions.size() << endl;
-//    analyzeAndDisplaySolutions(solutions);
-    for (int z = 0; z < 10; z++) {
-        solution temp_sol = SingleGRASP(data_set, distance_matrix);
-        if (temp_sol.acceptable == true) {
-            cout << temp_sol.truck_no << " " << temp_sol.final_distance << endl;
-            for (const auto& truck : temp_sol.trucks) {
-                for (const auto& vertex : truck.visited) {
-                    cout << vertex.vertex_no << " ";
-                }
-            }
-            cout << endl;
-        }
-        cout << endl;
-    }
+//    for (int z = 0; z < 10; z++) {
+//        solution temp_sol = SingleGRASP(data_set, distance_matrix);
+//        if (temp_sol.acceptable == true) {
+//            cout << temp_sol.truck_no << " " << temp_sol.final_distance << endl;
+//            for (const auto& truck : temp_sol.trucks) {
+//                for (const auto& vertex : truck.visited) {
+//                    cout << vertex.vertex_no << " ";
+//                }
+//            }
+//            cout << endl;
+//        }
+//        cout << endl;
+//    }
 
     return 0;
 }
 
-/*
-0. cvrptw1
-1.
-2. VEHICLE   -> ile mamy ciężarówek do maksymalnego wykorzystania
-3. NUMBER     CAPACITY   -> pojemność jednej ciężarówki
-4.  10        1000
-5.
-6. CUSTOMER
-7. CUST NO.  XCOORD.  YCOORD.    DEMAND   READY TIME  DUE DATE   SERVICE TIME
-8.
-9.     0     0        0          0        0           100          0
- .   1     0        10         10       200         300         10
- .   2     0        20         10       10          120         10
- .   3     0        30         10       20          180         10
- */
-
+// Wartości zmiennej time:
+// 1min = 60s
+// 2min = 120s
+// 3min = 180s
+// 4min = 240s
+// 5min = 300s
 
 /*i
  * liczbatras(Liczba ciężarówek) całkowitadługośćwszystkichtras(Droga+Rozładunek+Oczekiwanie)\n
@@ -362,21 +357,6 @@ int main() {
 
 //m2kvrptw-0.txt ((ciężarówki)≤1048, (koszt)≤4520131.2)
 //1 objazd/ciężarówka, koszt 90
-
-//cvrptw2
-//
-//VEHICLE
-//NUMBER     CAPACITY
-//10        30
-//
-//CUSTOMER
-//        CUST NO.  XCOORD.  YCOORD.    DEMAND   READY TIME  DUE DATE   SERVICE TIME
-//
-//0     0        0          0        0           100          0
-//1     0        10         10       10          300         10
-//2     0        20         10       20          120         10
-//3     0        30         10       30          180         10
-
 
 
 //NOTATNIK BY ANTEK
