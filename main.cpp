@@ -14,19 +14,14 @@ using namespace std;
 
 //struktura wierzchołków
 struct vertex {
-    //nr wierzcholka (vertex_no=0 magazyn)
-    int vertex_no;
-    //koordynaty
-    int x;
+    int vertex_no; //nr wierzcholka (vertex_no=0 magazyn)
+    int x; //koordynaty
     int y;
-    //zapotrzebowanie na towar
-    int commodity_need;
-    //początek i koniec okna
-    int window_start;
-    int window_end;
-    //czas rozładunku
-    int unload_time;
-    double value;
+    int commodity_need; //zapotrzebowanie na towar
+    int window_start; //początek okna
+    int window_end; //koniec okna
+    int unload_time; //czas rozładunku
+    double value; //miara dobroci
 };
 struct truck {
     int how_much_left;
@@ -86,7 +81,7 @@ extracted_data readingData(const string& file_name) {
     return temp;
 }
 //obliczanie dystansu miedzy dwoma wierzchołkami (pitagoras)
-double distance (double x, double y, double a, double b) {
+inline double distance (double x, double y, double a, double b) {
     return sqrt(pow(x - a, 2) + pow(y - b, 2));
 }
 //im mniejsze value tym wieksze prawdopodobienstwo na wylosowanie przez GRASP
@@ -96,13 +91,15 @@ double distance (double x, double y, double a, double b) {
 //
 //    return value;
 //}
-double countValue(const vector<vector<double>> distance_matrix, const vertex& previous, const vertex& next, const truck& current_truck) {
+
+inline double countValue(const vector<vector<double>>& distance_matrix, const vertex& previous, const vertex& next, const truck& current_truck) {
     double capacity_violation = (current_truck.how_much_left < next.commodity_need) ? 1.0 : 0.0;
     double window_end_violation = (current_truck.distance + distance_matrix[previous.vertex_no][next.vertex_no] > next.window_end) ? 1.0 : 0.0;
 
-    double value = (0.005 * next.unload_time) + (0.005 * distance_matrix[previous.vertex_no][next.vertex_no])
-     + (0.3 * capacity_violation) + (0.4 * window_end_violation) + (0.8 * (next.window_start - current_truck.distance));
-
+    double value = (0.0000001 * next.unload_time) + (0.0000003 * distance_matrix[previous.vertex_no][next.vertex_no])
+     + (0.9 * capacity_violation) + (1.0 * window_end_violation) + (0.0 * next.window_start);
+//0.0001 0.8 0.004 0.0
+//0.005 0.005 0.3 0.5 0.8 oryginal 135 454872
     return value;
 }
 
@@ -127,136 +124,181 @@ inline int chooseVertex(const vector<vertex>& candidate_list) {
     return distribution(generator); //wybrany indeks wierzcholka
 }
 
-void updateTruckInfoPostShipment (truck& truck, const vertex previous, const vertex current) {
-    truck.visited.push_back(current);
+inline void updateTruckInfoPostShipment (truck& truck, const vertex& previous, const vertex& next) {
+    truck.visited.push_back(next);
 
-    truck.how_much_left -= current.commodity_need;
+    truck.how_much_left -= next.commodity_need;
 
-    double distance_pc = distance(current.x, current.y, previous.x, previous.y);
+    double distance_pc = distance(next.x, next.y, previous.x, previous.y);
     truck.distance += distance_pc;
 
-    double waiting_time = max(0.0, current.window_start - truck.distance); //dopiero przyjechał, czy czeka?
-    truck.distance += waiting_time + current.unload_time;
+    double waiting_time = max(0.0, next.window_start - truck.distance); //dopiero przyjechał, czy czeka?
+    truck.distance += waiting_time + next.unload_time;
 }
 
-double finalDistance(const vector<truck>& trucks) {
-    double distance = 0;
+inline double finalDistance(const vector<truck>& trucks) {
+    double distance = 0.0;
     for (int i = 0; i < trucks.size(); i++) {
         distance += trucks[i].distance;
     }
     return distance;
 }
-double distanceSimulation (const truck& truck, const vertex previous, const vertex current) {
-    double distance_pc = distance(current.x, current.y, previous.x, previous.y);
-    double waiting_time = max(0.0, current.window_start - truck.distance); //dopiero przyjechał, czy czeka?
-    double simulated_distance = truck.distance + distance_pc + waiting_time + current.unload_time;
+inline double distanceSimulation (const truck& truck, const vertex& previous, const vertex& next) {
+    double distance_pc = distance(next.x, next.y, previous.x, previous.y);
+    double waiting_time = max(0.0, next.window_start - truck.distance); //dopiero przyjechał, czy czeka?
+    double simulated_distance = truck.distance + distance_pc + waiting_time + next.unload_time;
 
     return simulated_distance;
 }
 
 solution SingleGRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix) {
-    int current_vertex_no = 0; //magazyn
+    int next_vertex_no = 0; //magazyn
     vertex full_previous_vertex = data_set.vertexes[0];
-    vertex full_current_vertex = data_set.vertexes[0];
+    vertex full_next_vertex = data_set.vertexes[0];
     truck current_truck;
     current_truck.distance = 0;
     current_truck.how_much_left = data_set.capacity;
     vector<truck> trucks;
     vector<vertex> candidate_list = data_set.vertexes;
+    vector<vertex> top_candidates;
     candidate_list.erase(candidate_list.begin());
     solution temp_solution;
     temp_solution.acceptable = true;
+    solution best_solution;
 
+    int counter = 0;
     //GRASP main body
     while (!candidate_list.empty()) { //jeszcze
+        //cout << "while" << endl;
+
         //zabraklo ciezarowek
         if (trucks.size() > data_set.vehicle_number) {
             temp_solution.acceptable = false;
             break;
         }
-
         //obliczanie miar dobroci wzgledem aktualnego wierzcholka
         if (candidate_list.size() == 1) {
-            current_vertex_no = 0;
-            full_current_vertex = candidate_list[current_vertex_no];
+            next_vertex_no = 0;
+            full_next_vertex = candidate_list[next_vertex_no];
         }
         else {
             for (auto& candidate : candidate_list) {
-                //candidate_list[i].value = countValue(data_set.vertexes[current_vertex_no], candidate_list[i], current_truck.distance);
+                //candidate.value = countValue(data_set.vertexes[next_vertex_no], candidate_list[i], current_truck.distance);
                 candidate.value = countValue(distance_matrix, full_previous_vertex, candidate, current_truck);
             }
             sort(candidate_list.begin(), candidate_list.end(), by_value());
 
             //wyznaczenie top x% kandydatow z ktorych bedzie losowany kolejny klient
-            int top_percent = 50;
+            int top_percent = 20;
             int last_top_id = candidate_list.size() * top_percent / 100;
-            vector<vertex> top_candidates(candidate_list.begin(), candidate_list.begin() + last_top_id + 1);
+            top_candidates.clear();
+            top_candidates.assign(candidate_list.begin(), candidate_list.begin() + last_top_id + 1);
 
             //losowanie kolejnego klienta
-            current_vertex_no = chooseVertex(top_candidates);
-            full_current_vertex = candidate_list[current_vertex_no];
+            next_vertex_no = chooseVertex(top_candidates);
+            full_next_vertex = candidate_list[next_vertex_no];
+            //full_next_vertex = candidate_list[0];
         }
-        //czy ciezarowce uda sie wrocic do magazynu po tym jak odwiedzi kolejny wierzcholek? (ciezarowka konczy prace, za nia wchodzi kolejna)
-        if (distanceSimulation(current_truck, full_previous_vertex, full_current_vertex) + distance_matrix[full_current_vertex.vertex_no][0] > data_set.vertexes[0].window_end) {
+
+        //warunki na zakonczenie pracy aktualnej ciezarowki
+        if ((distanceSimulation(current_truck, full_previous_vertex, full_next_vertex) + distance_matrix[full_next_vertex.vertex_no][0]
+                    > data_set.vertexes[0].window_end) //nie wroci do magazynu po kolejnym wierzcholku (ciezarowka konczy prace, za nia wchodzi kolejna)
+            || (current_truck.how_much_left < full_next_vertex.commodity_need) ) {//nie ma wystarczajaco duzo towaru (ciezarowka konczy prace, za nia wchodzi kolejna)
+
             updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
-            current_vertex_no = 0;
+            next_vertex_no = 0;
             full_previous_vertex = data_set.vertexes[0];
             trucks.push_back(current_truck);
-            current_truck.distance = 0;
+            current_truck.distance = 0.0;
             current_truck.how_much_left = data_set.capacity;
             current_truck.visited.clear();
             continue;
         }
-        //czy ciezarowka ma wystarczajaco duzo towaru? (ciezarowka konczy prace, za nia wchodzi kolejna)
-        if (current_truck.how_much_left < full_current_vertex.commodity_need) {
+        if (current_truck.distance + distance_matrix[full_previous_vertex.vertex_no][full_next_vertex.vertex_no]
+                    > full_next_vertex.window_end) { //nie dojedzie do klienta przed zamknieciem okna dostawy (ciezarowka konczy prace, za nia wchodzi kolejna)
+
+            // dodatkowe losowanie wierzcholkow aby nie marnowac czesciowego rozwiazania
+            int max_retries = top_candidates.size() * 5 / 100;
+            for (int r = 0; r < max_retries; r++) {
+                //ponowne losowanie klienta
+                next_vertex_no = chooseVertex(top_candidates);
+                full_next_vertex = candidate_list[next_vertex_no];
+
+                //ponowne sprawdzenie warunkow (ich odwrotnosci)
+                if ((distanceSimulation(current_truck, full_previous_vertex, full_next_vertex) + distance_matrix[full_next_vertex.vertex_no][0]
+                        <= data_set.vertexes[0].window_end) //wroci do magazynu po kolejnym wierzcholku (ciezarowka konczy prace, za nia wchodzi kolejna)
+
+                    && (current_truck.how_much_left >= full_next_vertex.commodity_need) //ma wystarczajaco duzo towaru (ciezarowka konczy prace, za nia wchodzi kolejna)
+
+                    && (current_truck.distance + distance_matrix[full_previous_vertex.vertex_no][full_next_vertex.vertex_no]
+                        <= full_next_vertex.window_end)) { //dojedzie do klienta przed zamknieciem okna dostawy (ciezarowka konczy prace, za nia wchodzi kolejna)
+
+                    break; //wszystkie warunki spelnione, wiec juz nie szuka
+                }
+            }
             updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
-            current_vertex_no = 0;
+            next_vertex_no = 0;
             full_previous_vertex = data_set.vertexes[0];
             trucks.push_back(current_truck);
-            current_truck.distance = 0;
+            current_truck.distance = 0.0;
             current_truck.how_much_left = data_set.capacity;
             current_truck.visited.clear();
             continue;
         }
-        //czy ciezarowka dojedzie do klienta przed zamknieciem okna dostawy? (ciezarowka konczy prace, za nia wchodzi kolejna)
-        if (current_truck.distance + distance_matrix[full_previous_vertex.vertex_no][full_current_vertex.vertex_no]
-            > full_current_vertex.window_end) {
-            updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
-            current_vertex_no = 0;
-            full_previous_vertex = data_set.vertexes[0];
-            trucks.push_back(current_truck);
-            current_truck.distance = 0;
-            current_truck.how_much_left = data_set.capacity;
-            current_truck.visited.clear();
-            continue;
-        }
-        updateTruckInfoPostShipment(current_truck, full_previous_vertex, full_current_vertex);
-        full_previous_vertex = full_current_vertex;
-        candidate_list.erase(candidate_list.begin() + current_vertex_no);
+
+        //cout << "while" << endl;
+        //ciezarowka jedzie dalej (znalazla sobie klienta)
+        updateTruckInfoPostShipment(current_truck, full_previous_vertex, full_next_vertex);
+        full_previous_vertex = full_next_vertex;
+        candidate_list.erase(candidate_list.begin() + next_vertex_no);
+        counter++;
     }
     updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
     trucks.push_back(current_truck); //ostatnia ciezarowka (w przypadku braku klientow)
 
-    for (int g = 0; g < trucks.size(); g++) {
-        int sizing = trucks[g].visited.size();
-        double comeback_distance = distance_matrix[0][trucks[g].visited[sizing - 1].vertex_no];
-        trucks[g].distance += comeback_distance;
-    }
+//    for (int g = 0; g < trucks.size(); g++) {
+//        int sizing = trucks[g].visited.size();
+//        double comeback_distance = distance_matrix[0][trucks[g].visited[sizing - 1].vertex_no];
+//        trucks[g].distance += comeback_distance;
+//    }
     temp_solution.trucks = trucks;
     temp_solution.truck_no = trucks.size();
     temp_solution.final_distance = finalDistance(trucks);
+    cout << counter << endl;
 
     return temp_solution;
 }
 
-vector<solution> GRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, int seconds){
-    vector<solution> solutions;
+//vector<solution> GRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, int seconds){
+//    vector<solution> solutions;
+//    solution temp_solution;
+//    for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{seconds}; now = chrono::steady_clock::now()) {
+//        temp_solution = SingleGRASP(data_set, distance_matrix);
+//        if (solutions.size() == 0) {
+//            solutions.emplace_back(temp_solution);
+//        }
+//        else if (solutions[0].truck_no > temp_solution.truck_no) {
+//            solutions.clear();
+//            solutions.emplace_back(temp_solution);
+//        }
+//    }
+//
+//    return solutions;
+//}
+solution GRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, int seconds){
+    solution best_solution;
+    best_solution.truck_no = data_set.vehicle_number + 1;
+    best_solution.acceptable = false;
+    solution temp_solution;
     for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{seconds}; now = chrono::steady_clock::now()) {
-        solutions.emplace_back( SingleGRASP(data_set, distance_matrix) );
+        temp_solution = SingleGRASP(data_set, distance_matrix);
+        if ((temp_solution.acceptable) && (best_solution.truck_no > temp_solution.truck_no)) {
+            best_solution = temp_solution;
+        }
     }
 
-    return solutions;
-};
+    return best_solution;
+}
 
 vector<vector<double>> createDistanceMatrix (const extracted_data& data_set) {
     vector<vector<double>> distance_matrix;
@@ -296,21 +338,64 @@ void analyzeAndDisplaySolutions(const vector<solution>& solutions) {
         cout << "-1";
     }
 }
+void saveResultsToFile(const solution& best_solution) {
+    std::ofstream outputFile("wyniki.txt");
+    if (!outputFile.is_open()) {
+        cerr << "Error opening output file." << std::endl;
+        return;
+    }
 
+    if (best_solution.acceptable) {
+        outputFile << fixed << std::setprecision(5);  // Ustawienie precyzji na 10 miejsc po przecinku
+        outputFile << best_solution.truck_no << " " << best_solution.final_distance << endl;
+        for (int g = 0; g < best_solution.trucks.size(); g++) {
+            for (int y = 0; y < best_solution.trucks[g].visited.size(); y++) {
+                if (best_solution.trucks[g].visited[y].vertex_no != 0) {
+                    outputFile << best_solution.trucks[g].visited[y].vertex_no << " ";
+                }
+            }
+            if (g < best_solution.trucks.size() - 1) {
+                outputFile << endl;
+            }
+        }
+    }
+    else {
+        outputFile << "-1";
+    }
+
+    outputFile.close();
+}
 
 int main() {
-    srand(time(0));
-
     cout.precision(5);
-    extracted_data data_set = readingData("RC2_2_5.txt");
+    extracted_data data_set = readingData("RC210_1.txt");
     //cout << data_set.vehicle_number << " " << data_set.capacity << endl;
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
-    int time = 3;
-    vector<solution> solutions = GRASP(data_set, distance_matrix, time);
+    int time = 20;
+    //vector<solution> solutions = GRASP(data_set, distance_matrix, time);
     //cout << solutions.size() << endl;
-    analyzeAndDisplaySolutions(solutions);
+    //analyzeAndDisplaySolutions(solutions);
+
+//    solution best_solution = GRASP(data_set, distance_matrix, time);
+//    if (best_solution.acceptable) {
+//        cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
+//        for (int g = 0; g < best_solution.trucks.size(); g++) {
+//            for (int y = 0; y < best_solution.trucks[g].visited.size(); y++) {
+//                if (best_solution.trucks[g].visited[y].vertex_no != 0) {
+//                    cout << best_solution.trucks[g].visited[y].vertex_no << " ";
+//                }
+//            }
+//            cout << endl;
+//        }
+//    }
+//    else {
+//        cout << "-1";
+//    }
+
+    solution best_solution = GRASP(data_set, distance_matrix, time);
+    saveResultsToFile(best_solution);
 
 //    for (int z = 0; z < 10; z++) {
 //        solution temp_sol = SingleGRASP(data_set, distance_matrix);
