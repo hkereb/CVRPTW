@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <regex>
 #include <random>
-#include<chrono>
+#include <chrono>
 
 using namespace std;
 
@@ -414,28 +414,12 @@ int main() {
     return 0;
 }
 
-
-
-
-
-
 // Wartości zmiennej time:
 // 1min = 60s
 // 2min = 120s
 // 3min = 180s
 // 4min = 240s
 // 5min = 300s
-
-/*i
- * liczbatras(Liczba ciężarówek) całkowitadługośćwszystkichtras(Droga+Rozładunek+Oczekiwanie)\n
-    nr_1._wierzchołka_w_1.trasie    nr_2._wierzchołka_w_1.trasie ...\n, <- Wierzchołki dowiedzone przez ciężarówke np.: 0 -> 2 -> 4 -> 3 -> 1 -> 0
-    ...
-    nr_1._wierzchołka_w_ntej.trasie nr_2._wierzchołka_w_ntej.trasie ...\n
- */
-
-//m2kvrptw-0.txt ((ciężarówki)≤1048, (koszt)≤4520131.2)
-//1 objazd/ciężarówka, koszt 90
-
 
 //NOTATNIK BY ANTEK
 /*
