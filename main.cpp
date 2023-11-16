@@ -30,15 +30,15 @@ struct truck {
 };
 //struktura pomocnicza do wczytywania pliku
 struct extracted_data {
-    int vehicle_number;
-    int capacity;
-    vector<vertex> vertexes;
+    int vehicle_number; //liczba ciezarowek
+    int capacity; //ich zapotrzebowanie na towar
+    vector<vertex> vertexes; //lista wszystkich klientow
 };
 struct solution {
-    bool acceptable;
-    vector<truck> trucks;
-    int truck_no;
-    double final_distance;
+    bool acceptable; //czy dopuszczalne
+    vector<truck> trucks; //lista wszystkich uzytych ciezarowek
+    int truck_no; //liczba ciezarowek
+    double final_distance; //sumaryczny koszt
 };
 struct by_value {
     inline bool operator() (const vertex& a, const vertex& b) {
@@ -110,13 +110,6 @@ vector<vector<double>> createDistanceMatrix(const extracted_data& data_set) {
 }
 
 //im mniejsze value tym wieksze prawdopodobienstwo na wylosowanie przez GRASP
-//double countValue(vector<vector<double>> distance_matrix, vertex previous, vertex next, double current_time) {
-//    double value = distance_matrix[previous.vertex_no][next.vertex_no]
-//                   + next.unload_time + (next.window_start - current_time);
-//
-//    return value;
-//}
-
 inline double countValue(const vector<vector<double>>& distance_matrix, const vertex& previous, const vertex& next, const truck& current_truck) {
     double capacity_violation = (current_truck.how_much_left < next.commodity_need) ? 1.0 : 0.0; //za malo towaru
     double window_end_violation = (current_truck.distance + distance_matrix[previous.vertex_no][next.vertex_no] > next.window_end) ? 1.0 : 0.0; //za pozno przyjechal
@@ -132,10 +125,7 @@ inline double countValue(const vector<vector<double>>& distance_matrix, const ve
 
 default_random_engine generator(random_device{}());
 inline int chooseVertex(const vector<vertex>& candidate_list) {
-    //random_device rd;
-    //default_random_engine generator(rd());
-
-    vector<double> weights;
+    vector<double> weights; //zamiana value na wagi z zakresu (0;1)
     for (const vertex& v : candidate_list) {
         weights.push_back(1.0 / v.value);
     }
@@ -192,17 +182,19 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
     solution temp_solution;
     temp_solution.acceptable = true;
     solution best_solution;
-    int counter = 0;
 
     //GRASP main body
     while (!candidate_list.empty()) {
         bool found_a_client;
-//        //zabraklo ciezarowek
-//        if (trucks.size() > data_set.vehicle_number) {
-//            temp_solution.acceptable = false;
-//            break;
-//        }
-        //obliczanie miar dobroci wzgledem aktualnego wierzcholka
+
+        //przerwanie pracy po przekroczeniu czasu
+        auto current_time = chrono::high_resolution_clock::now();
+        auto duration = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+        if (duration > time_limit) {
+            temp_solution.acceptable = false;
+            break;
+        }
+
         if (candidate_list.size() == 1) {
             next_vertex_no = 0; //bo ten jeden ma id 0
             full_next_vertex = candidate_list[next_vertex_no];
@@ -210,7 +202,6 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
         else {
             //obliczanie miar dobroci wzgledem aktualnego wierzcholka
             for (auto& candidate : candidate_list) {
-                //candidate.value = countValue(data_set.vertexes[next_vertex_no], candidate_list[i], current_truck.distance);
                 candidate.value = countValue(distance_matrix, full_previous_vertex, candidate, current_truck);
             }
             sort(candidate_list.begin(), candidate_list.end(), by_value());
@@ -219,12 +210,11 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
             int top_percent = 10;
             int last_top_id = candidate_list.size() * top_percent / 100;
             top_candidates.clear();
-            top_candidates.assign(candidate_list.begin(), candidate_list.begin() + last_top_id + 1);
+            top_candidates.assign(candidate_list.begin(), candidate_list.begin() + last_top_id + 1); //+1 bo last top to int i chodzi o zaokraglenie
 
             //losowanie kolejnego klienta
             next_vertex_no = chooseVertex(top_candidates);
             full_next_vertex = candidate_list[next_vertex_no];
-            //full_next_vertex = candidate_list[0];
         }
 
         found_a_client = true;
@@ -271,7 +261,6 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
             continue;
         }
 
-        //cout << "while" << endl;
         updateTruckInfoPostShipment(current_truck, full_previous_vertex, full_next_vertex);
         full_previous_vertex = full_next_vertex;
         candidate_list.erase(candidate_list.begin() + next_vertex_no);
@@ -288,7 +277,7 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
 
 solution GRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, const int time_limit){
     solution best_solution;
-    best_solution.truck_no = data_set.vehicle_number * 5;
+    best_solution.truck_no = data_set.vehicle_number * 5; //dla pierwszego porownania z temp_solution
     best_solution.acceptable = false;
     solution temp_solution;
     for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{time_limit}; now = chrono::steady_clock::now()) {
@@ -361,7 +350,7 @@ int main() {
  * ZROBIONE - greedy
  * zaokraglenia
  * zliczanie ilości rozwiąń
- * napisać instrukcje jak korzystać z programu dla drozdy
- * dodać DEFINE na górze pliku do testów
+ * ZROBIONE - napisać instrukcje jak korzystać z programu
+ *
  *
  */
