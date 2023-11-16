@@ -14,7 +14,7 @@ using namespace std;
 
 //struktura wierzchołków
 struct vertex {
-    int vertex_no; //nr wierzcholka (vertex_no=0 magazyn)
+    int vertex_no; //nr klienta (vertex_no = 0 magazyn)
     int x; //koordynaty
     int y;
     int commodity_need; //zapotrzebowanie na towar
@@ -24,9 +24,9 @@ struct vertex {
     double value; //miara dobroci
 };
 struct truck {
-    int how_much_left;
-    double distance;
-    vector<vertex> visited;
+    int how_much_left; //ile pozostalo towaru
+    double distance; //aktualny dystans
+    vector<vertex> visited; //odwiedzeni klienci
 };
 //struktura pomocnicza do wczytywania pliku
 struct extracted_data {
@@ -61,7 +61,7 @@ extracted_data readingData(const string& file_name) {
         if (line.find("CUSTOMER") != string::npos) {
             readingCustomerData = true;
         }
-        //jeżeli nie jest jeszcze na "CUSTOMER", odczytuje pierwsze extracted_data
+        //jeżeli nie jest jeszcze na "CUSTOMER", odczytuje pierwsze informacje z pliku
         else if (!readingCustomerData) {
             istringstream ss(line);
             ss >> temp.vehicle_number >> temp.capacity;
@@ -84,6 +84,7 @@ extracted_data readingData(const string& file_name) {
 inline double distance (double x, double y, double a, double b) {
     return sqrt(pow(x - a, 2) + pow(y - b, 2));
 }
+
 //im mniejsze value tym wieksze prawdopodobienstwo na wylosowanie przez GRASP
 //double countValue(vector<vector<double>> distance_matrix, vertex previous, vertex next, double current_time) {
 //    double value = distance_matrix[previous.vertex_no][next.vertex_no]
@@ -158,21 +159,23 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
     int next_vertex_no = 0; //magazyn
     vertex full_previous_vertex = data_set.vertexes[0];
     vertex full_next_vertex = data_set.vertexes[0];
+
     truck current_truck;
     current_truck.distance = 0;
     current_truck.how_much_left = data_set.capacity;
     vector<truck> trucks;
+
     vector<vertex> candidate_list = data_set.vertexes;
+    candidate_list.erase(candidate_list.begin()); //usuwamy magazyn
     vector<vertex> top_candidates;
-    candidate_list.erase(candidate_list.begin());
+
     solution temp_solution;
     temp_solution.acceptable = true;
     solution best_solution;
     int counter = 0;
 
     //GRASP main body
-    while (!candidate_list.empty()) { //jeszcze
-        //cout << "while" << endl;
+    while (!candidate_list.empty()) {
         bool found_a_client;
 //        //zabraklo ciezarowek
 //        if (trucks.size() > data_set.vehicle_number) {
@@ -185,6 +188,7 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
             full_next_vertex = candidate_list[next_vertex_no];
         }
         else {
+            //obliczanie miar dobroci wzgledem aktualnego wierzcholka
             for (auto& candidate : candidate_list) {
                 //candidate.value = countValue(data_set.vertexes[next_vertex_no], candidate_list[i], current_truck.distance);
                 candidate.value = countValue(distance_matrix, full_previous_vertex, candidate, current_truck);
@@ -214,7 +218,7 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
                 > full_next_vertex.window_end) ) { //nie dojedzie do klienta przed zamknieciem okna dostawy (ciezarowka konczy prace, za nia wchodzi kolejna)
 
             found_a_client = false;
-            // dodatkowe losowanie wierzcholkow aby nie marnowac czesciowego rozwiazania
+            //dodatkowe losowanie wierzcholkow aby nie marnowac czesciowego rozwiazania
             int max_retries = top_candidates.size() * 5 / 100;
             for (int r = 0; r < max_retries; r++) {
                 //ponowne losowanie klienta
@@ -335,14 +339,14 @@ void analyzeAndDisplaySolutions(const vector<solution>& solutions) {
     }
 }
 void saveResultsToFile(const solution& best_solution) {
-    std::ofstream outputFile("wyniki.txt");
+    ofstream outputFile("wyniki.txt");
     if (!outputFile.is_open()) {
         cerr << "Error opening output file." << std::endl;
         return;
     }
 
     if (best_solution.acceptable) {
-        outputFile << fixed << std::setprecision(5);  // Ustawienie precyzji na 10 miejsc po przecinku
+        outputFile << fixed << setprecision(5);  // Ustawienie precyzji na 5 miejsc po przecinku
         outputFile << best_solution.truck_no << " " << best_solution.final_distance << endl;
         for (int g = 0; g < best_solution.trucks.size(); g++) {
             for (int y = 0; y < best_solution.trucks[g].visited.size(); y++) {
@@ -362,20 +366,23 @@ void saveResultsToFile(const solution& best_solution) {
     outputFile.close();
 }
 
-int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        cout << "Wrong amount of arguments" << endl;
-        return 1;
-    }
-    string filename = argv[1];
-
+//int main(int argc, char* argv[]) {
+//    if (argc != 2) {
+//        cout << "Wrong amount of arguments" << endl;
+//        cout << "./NAZWAPLIKU.out plik_wejsciowy.txt" << endl;
+//        return 1;
+//    }
+//    string filename = argv[1];
+//
+//    cout.precision(5);
+//    extracted_data data_set = readingData(filename);
+int main() {
     cout.precision(5);
-    extracted_data data_set = readingData(filename);
-    //cout << data_set.vehicle_number << " " << data_set.capacity << endl;
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////
+    extracted_data data_set = readingData("m2kvrptw-0.txt");
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
-    int time = 20;
+    int time = 5;
     //vector<solution> solutions = GRASP(data_set, distance_matrix, time);
     //cout << solutions.size() << endl;
     //analyzeAndDisplaySolutions(solutions);
