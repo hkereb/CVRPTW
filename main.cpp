@@ -173,7 +173,9 @@ inline double finalDistance(const vector<truck>& trucks) {
     return distance;
 }
 
-solution SingleGRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix) {
+solution SingleGRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, const int time_limit) {
+    auto start_time = chrono::high_resolution_clock::now(); //start stoper
+
     int next_vertex_no = 0; //magazyn
     vertex full_previous_vertex = data_set.vertexes[0];
     vertex full_next_vertex = data_set.vertexes[0];
@@ -273,7 +275,6 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
         updateTruckInfoPostShipment(current_truck, full_previous_vertex, full_next_vertex);
         full_previous_vertex = full_next_vertex;
         candidate_list.erase(candidate_list.begin() + next_vertex_no);
-        counter++;
     }
     updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
     trucks.push_back(current_truck); //ostatnia ciezarowka (w przypadku braku klientow)
@@ -282,18 +283,16 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
     temp_solution.truck_no = trucks.size();
     temp_solution.final_distance = finalDistance(trucks);
 
-    cout << counter << endl;
-
     return temp_solution;
 }
 
-solution GRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, int seconds){
+solution GRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, const int time_limit){
     solution best_solution;
     best_solution.truck_no = data_set.vehicle_number * 5;
     best_solution.acceptable = false;
     solution temp_solution;
-    for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{seconds}; now = chrono::steady_clock::now()) {
-        temp_solution = SingleGRASP(data_set, distance_matrix);
+    for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{time_limit}; now = chrono::steady_clock::now()) {
+        temp_solution = SingleGRASP(data_set, distance_matrix, time_limit);
         if ((temp_solution.acceptable) && (best_solution.truck_no > temp_solution.truck_no)) {
             best_solution = temp_solution;
         }
@@ -332,11 +331,11 @@ void saveResultsToFile(const solution& best_solution) {
 
 int main() {
     cout.precision(5);
-    extracted_data data_set = readingData("m2kvrptw-0.txt");
+    extracted_data data_set = readingData("cvrptw1.txt");
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
-    int time = 120;
+    int time = 5;
     solution best_solution = GRASP(data_set, distance_matrix, time);
     saveResultsToFile(best_solution);
 
