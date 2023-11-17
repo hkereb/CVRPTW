@@ -168,7 +168,7 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
 
     int next_vertex_no = 0; //magazyn
     vertex full_previous_vertex = data_set.vertexes[0];
-    vertex full_next_vertex = data_set.vrtexes[0];
+    vertex full_next_vertex = data_set.vertexes[0];
 
     truck current_truck;
     current_truck.distance = 0;
