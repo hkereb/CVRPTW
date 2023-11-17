@@ -168,7 +168,7 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
 
     int next_vertex_no = 0; //magazyn
     vertex full_previous_vertex = data_set.vertexes[0];
-    vertex full_next_vertex = data_set.vertexes[0];
+    vertex full_next_vertex = data_set.vrtexes[0];
 
     truck current_truck;
     current_truck.distance = 0;
@@ -185,8 +185,6 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
 
     //GRASP main body
     while (!candidate_list.empty()) {
-        bool found_a_client;
-
         //przerwanie pracy po przekroczeniu czasu
         auto current_time = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
@@ -217,7 +215,6 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
             full_next_vertex = candidate_list[next_vertex_no];
         }
 
-        found_a_client = true;
         //warunki na zakonczenie pracy aktualnej ciezarowki
         if ((distanceSimulation(current_truck, full_previous_vertex, full_next_vertex) + distance_matrix[full_next_vertex.vertex_no][0]
              > data_set.vertexes[0].window_end) //nie wroci do magazynu po kolejnym wierzcholku (ciezarowka konczy prace, za nia wchodzi kolejna)
@@ -227,30 +224,6 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
             || (current_truck.distance + distance_matrix[full_previous_vertex.vertex_no][full_next_vertex.vertex_no]
                 > full_next_vertex.window_end) ) { //nie dojedzie do klienta przed zamknieciem okna dostawy (ciezarowka konczy prace, za nia wchodzi kolejna)
 
-            found_a_client = false;
-            //dodatkowe losowanie wierzcholkow aby nie marnowac czesciowego rozwiazania
-            int max_retries = top_candidates.size() * 5 / 100;
-            for (int r = 0; r < max_retries; r++) {
-                //ponowne losowanie klienta
-                next_vertex_no = chooseVertex(top_candidates);
-                full_next_vertex = candidate_list[next_vertex_no];
-
-                //ponowne sprawdzenie warunkow (ich odwrotnosci)
-                if ((distanceSimulation(current_truck, full_previous_vertex, full_next_vertex) + distance_matrix[full_next_vertex.vertex_no][0]
-                     <= data_set.vertexes[0].window_end) //wroci do magazynu po kolejnym wierzcholku (ciezarowka konczy prace, za nia wchodzi kolejna)
-
-                    && (current_truck.how_much_left >= full_next_vertex.commodity_need) //ma wystarczajaco duzo towaru (ciezarowka konczy prace, za nia wchodzi kolejna)
-
-                    && (current_truck.distance + distance_matrix[full_previous_vertex.vertex_no][full_next_vertex.vertex_no]
-                        <= full_next_vertex.window_end)) { //dojedzie do klienta przed zamknieciem okna dostawy (ciezarowka konczy prace, za nia wchodzi kolejna)
-
-                    found_a_client = true;
-                    break; //wszystkie warunki spelnione, wiec juz nie szuka
-                }
-            }
-        }
-        if (!found_a_client) {
-            //po ponownych probach nie udalo sie wybrac kolejnego klienta
             updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
             next_vertex_no = 0;
             full_previous_vertex = data_set.vertexes[0];
@@ -320,7 +293,7 @@ void saveResultsToFile(const solution& best_solution) {
 
 int main() {
     cout.precision(5);
-    extracted_data data_set = readingData("cvrptw1.txt");
+    extracted_data data_set = readingData("RC2_4_4.txt");
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
