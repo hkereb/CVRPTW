@@ -59,7 +59,6 @@ double getCurrentTime(const chrono::high_resolution_clock::time_point& start_tim
     return static_cast<double>(duration);
 }
 
-
 //wczytywanie danych
 extracted_data readingData(const string file_name) {
     extracted_data temp;
@@ -259,23 +258,21 @@ solution GRASP (const extracted_data data_set, const vector<vector<double>> dist
     best_solution.truck_no = data_set.vehicle_number * 5; //dla pierwszego porownania z temp_solution
     best_solution.acceptable = false;
     solution temp_solution;
-    while (1) {
+    for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{time_limit}; now = chrono::steady_clock::now()) {
         temp_solution = SingleGRASP(data_set, distance_matrix, time_limit);
         if ((temp_solution.acceptable) && (best_solution.truck_no > temp_solution.truck_no)) {
             best_solution = temp_solution;
         }
     }
-
     return best_solution;
 }
 
 void saveResultsToFile(const solution best_solution) {
-    ofstream outputFile("wyniki.txt");
+    std::ofstream outputFile("wyniki.txt", std::ios::trunc);
     if (!outputFile.is_open()) {
         cerr << "Error opening output file." << std::endl;
         return;
     }
-
 
     if (best_solution.acceptable) {
         outputFile << fixed << setprecision(5);
@@ -297,15 +294,12 @@ void saveResultsToFile(const solution best_solution) {
 
     outputFile.close();
 }
-
-void initialSaveToFile() {
-    std::ofstream outputFile("wyniki.txt", std::ios::trunc);
-
+void initialSaveResultsToFile() {
+    ofstream outputFile("wyniki.txt");
     if (!outputFile.is_open()) {
         cerr << "Error opening output file." << std::endl;
         return;
     }
-
     outputFile << "-1";
 
     outputFile.close();
@@ -329,12 +323,12 @@ int main() {
 
     auto start_time = chrono::steady_clock::now();  // Początkowy czas pomiaru
 
+    initialSaveResultsToFile();
     cout.precision(5);
-    extracted_data data_set = readingData("cvrptw2.txt");
+    extracted_data data_set = readingData("C101.txt");
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
     int time = 10;
-    initialSaveToFile();
 
     // Utwórz wątek do monitorowania czasu
     std::thread timerThread([&start_time, &time]() {
@@ -342,13 +336,13 @@ int main() {
         auto elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
 
         while (elapsed_time <= time) {
-            cout << "Elapsed time: " << elapsed_time << " seconds.\n";
+            cout << "Elapsed time: " << elapsed_time << " seconds." << endl;
             std::this_thread::sleep_for(std::chrono::seconds(1));  // Poczekaj 1 sekundę
             current_time = chrono::steady_clock::now();
             elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
         }
 
-        cout << "Time limit exceeded. Exiting...\n";
+        cout << "Time limit exceeded." << endl;
         exit(0); // Lub inna odpowiednia akcja po przekroczeniu czasu
     });
 
