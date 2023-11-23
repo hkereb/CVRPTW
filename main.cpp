@@ -5,12 +5,19 @@
 #include <sstream>
 #include <cmath>
 #include <iomanip>
-#include <cstdlib>
-#include <regex>
 #include <random>
 #include <chrono>
+#include <thread>
+#include <algorithm>
 
 using namespace std;
+
+const double RCL = 10;
+const double A = 0.00005;
+const double B = 0.00005;
+const double C = 100;
+const double D = 100;
+const double E = 0.00008;
 
 //struktura wierzchołków
 struct vertex {
@@ -24,21 +31,21 @@ struct vertex {
     double value; //miara dobroci
 };
 struct truck {
+    vector<vertex> visited; //odwiedzeni klienci
     int how_much_left; //ile pozostalo towaru
     double distance; //aktualny dystans
-    vector<vertex> visited; //odwiedzeni klienci
 };
 //struktura pomocnicza do wczytywania pliku
 struct extracted_data {
+    vector<vertex> vertexes; //lista wszystkich klientow
     int vehicle_number; //liczba ciezarowek
     int capacity; //ich zapotrzebowanie na towar
-    vector<vertex> vertexes; //lista wszystkich klientow
 };
 struct solution {
-    bool acceptable; //czy dopuszczalne
     vector<truck> trucks; //lista wszystkich uzytych ciezarowek
     int truck_no; //liczba ciezarowek
     double final_distance; //sumaryczny koszt
+    bool acceptable; //czy dopuszczalne
 };
 struct by_value {
     inline bool operator() (const vertex& a, const vertex& b) {
@@ -46,8 +53,15 @@ struct by_value {
     }
 };
 
+double getCurrentTime(const chrono::high_resolution_clock::time_point& start_time) {
+    auto current_time = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+    return static_cast<double>(duration);
+}
+
+
 //wczytywanie danych
-extracted_data readingData(const string& file_name) {
+extracted_data readingData(const string file_name) {
     extracted_data temp;
     ifstream example(file_name);
     if (!example.good()) {
@@ -91,7 +105,7 @@ inline double distance (double x, double y, double a, double b) {
     return sqrt(pow(x - a, 2) + pow(y - b, 2));
 }
 
-vector<vector<double>> createDistanceMatrix(const extracted_data& data_set) {
+vector<vector<double>> createDistanceMatrix(const extracted_data data_set) {
     vector<vector<double>> distance_matrix;
 
     for (const auto& w : data_set.vertexes) {
@@ -110,21 +124,20 @@ vector<vector<double>> createDistanceMatrix(const extracted_data& data_set) {
 }
 
 //im mniejsze value tym wieksze prawdopodobienstwo na wylosowanie przez GRASP
-inline double countValue(const vector<vector<double>>& distance_matrix, const vertex& previous, const vertex& next, const truck& current_truck) {
+inline double countValue(const vector<vector<double>> distance_matrix, const vertex previous, const vertex next, const truck current_truck) {
     double capacity_violation = (current_truck.how_much_left < next.commodity_need) ? 1.0 : 0.0; //za malo towaru
     double window_end_violation = (current_truck.distance + distance_matrix[previous.vertex_no][next.vertex_no] > next.window_end) ? 1.0 : 0.0; //za pozno przyjechal
-    double window_start_waiting = max( (next.window_start - current_truck.distance + distance_matrix[previous.vertex_no][next.vertex_no]), 0.0 );
+    double window_start_waiting = max( (next.window_start - current_truck.distance + distance_matrix[previous.vertex_no][next.vertex_no]), 0.0); //ile czeka
 
-    double value = (0.0000001 * next.unload_time) + (0.0000003 * distance_matrix[previous.vertex_no][next.vertex_no])
-     + (1.0 * capacity_violation) + (1.0 * window_end_violation) + (0.00009 * window_start_waiting);
-//0.0001 0.8 0.004 0.0 naj 135 454872
-//0.0000001 0.0000003 0.9 1.0 0.0
-//0.005 0.005 0.3 0.5 0.8 oryginal
+    double value = (A * next.unload_time) + (B * distance_matrix[previous.vertex_no][next.vertex_no])
+     + (C * capacity_violation) + (D * window_end_violation) + (E * window_start_waiting);
+
     return value;
 }
 
 default_random_engine generator(random_device{}());
-inline int chooseVertex(const vector<vertex>& candidate_list) {
+
+inline int chooseVertex(const vector<vertex> candidate_list) {
     vector<double> weights; //zamiana value na wagi z zakresu (0;1)
     for (const vertex& v : candidate_list) {
         weights.push_back(1.0 / v.value);
@@ -135,7 +148,7 @@ inline int chooseVertex(const vector<vertex>& candidate_list) {
     return distribution(generator); //wybrany indeks wierzcholka
 }
 
-inline void updateTruckInfoPostShipment (truck& truck, const vertex& previous, const vertex& next) {
+inline truck updateTruckInfoPostShipment (truck truck, const vertex previous, const vertex next) {
     truck.visited.push_back(next);
 
     truck.how_much_left -= next.commodity_need;
@@ -145,17 +158,19 @@ inline void updateTruckInfoPostShipment (truck& truck, const vertex& previous, c
 
     double waiting_time = max(0.0, next.window_start - truck.distance); //dopiero przyjechał, czy czeka?
     truck.distance += waiting_time + next.unload_time;
+
+    return truck;
 }
 
-inline double distanceSimulation (const truck& truck, const vertex& previous, const vertex& next) {
+inline double distanceSimulation (const truck truck, const vertex previous, const vertex next) {
     double distance_pc = distance(next.x, next.y, previous.x, previous.y);
-    double waiting_time = max(0.0, next.window_start - truck.distance); //dopiero przyjechał, czy czeka?
+    double waiting_time = max(0.0, next.window_start - ( truck.distance + distance_pc) ); //dopiero przyjechał, czy czeka?
     double simulated_distance = truck.distance + distance_pc + waiting_time + next.unload_time;
 
     return simulated_distance;
 }
 
-inline double finalDistance(const vector<truck>& trucks) {
+inline double finalDistance(const vector<truck> trucks) {
     double distance = 0.0;
     for (int i = 0; i < trucks.size(); i++) {
         distance += trucks[i].distance;
@@ -164,8 +179,6 @@ inline double finalDistance(const vector<truck>& trucks) {
 }
 
 solution SingleGRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, const int time_limit) {
-    auto start_time = chrono::high_resolution_clock::now(); //start stoper
-
     int next_vertex_no = 0; //magazyn
     vertex full_previous_vertex = data_set.vertexes[0];
     vertex full_next_vertex = data_set.vertexes[0];
@@ -180,19 +193,11 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
     vector<vertex> top_candidates;
 
     solution temp_solution;
-    temp_solution.acceptable = true;
+    temp_solution.acceptable = false;
     solution best_solution;
 
     //GRASP main body
     while (!candidate_list.empty()) {
-        //przerwanie pracy po przekroczeniu czasu
-        auto current_time = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
-        if (duration > time_limit) {
-            temp_solution.acceptable = false;
-            break;
-        }
-
         if (candidate_list.size() == 1) {
             next_vertex_no = 0; //bo ten jeden ma id 0
             full_next_vertex = candidate_list[next_vertex_no];
@@ -205,7 +210,7 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
             sort(candidate_list.begin(), candidate_list.end(), by_value());
 
             //wyznaczenie top x% kandydatow z ktorych bedzie losowany kolejny klient
-            int top_percent = 10;
+            int top_percent = RCL;
             int last_top_id = candidate_list.size() * top_percent / 100;
             top_candidates.clear();
             top_candidates.assign(candidate_list.begin(), candidate_list.begin() + last_top_id + 1); //+1 bo last top to int i chodzi o zaokraglenie
@@ -224,7 +229,7 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
             || (current_truck.distance + distance_matrix[full_previous_vertex.vertex_no][full_next_vertex.vertex_no]
                 > full_next_vertex.window_end) ) { //nie dojedzie do klienta przed zamknieciem okna dostawy (ciezarowka konczy prace, za nia wchodzi kolejna)
 
-            updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
+            current_truck = updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
             next_vertex_no = 0;
             full_previous_vertex = data_set.vertexes[0];
             trucks.push_back(current_truck);
@@ -234,26 +239,27 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
             continue;
         }
 
-        updateTruckInfoPostShipment(current_truck, full_previous_vertex, full_next_vertex);
+        current_truck = updateTruckInfoPostShipment(current_truck, full_previous_vertex, full_next_vertex);
         full_previous_vertex = full_next_vertex;
         candidate_list.erase(candidate_list.begin() + next_vertex_no);
     }
-    updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
+    current_truck = updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
     trucks.push_back(current_truck); //ostatnia ciezarowka (w przypadku braku klientow)
 
     temp_solution.trucks = trucks;
     temp_solution.truck_no = trucks.size();
     temp_solution.final_distance = finalDistance(trucks);
+    temp_solution.acceptable = true;
 
     return temp_solution;
 }
 
-solution GRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, const int time_limit){
+solution GRASP (const extracted_data data_set, const vector<vector<double>> distance_matrix, const int time_limit) {
     solution best_solution;
     best_solution.truck_no = data_set.vehicle_number * 5; //dla pierwszego porownania z temp_solution
     best_solution.acceptable = false;
     solution temp_solution;
-    for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{time_limit}; now = chrono::steady_clock::now()) {
+    while (1) {
         temp_solution = SingleGRASP(data_set, distance_matrix, time_limit);
         if ((temp_solution.acceptable) && (best_solution.truck_no > temp_solution.truck_no)) {
             best_solution = temp_solution;
@@ -263,12 +269,13 @@ solution GRASP (const extracted_data& data_set, const vector<vector<double>>& di
     return best_solution;
 }
 
-void saveResultsToFile(const solution& best_solution) {
+void saveResultsToFile(const solution best_solution) {
     ofstream outputFile("wyniki.txt");
     if (!outputFile.is_open()) {
         cerr << "Error opening output file." << std::endl;
         return;
     }
+
 
     if (best_solution.acceptable) {
         outputFile << fixed << setprecision(5);
@@ -291,19 +298,75 @@ void saveResultsToFile(const solution& best_solution) {
     outputFile.close();
 }
 
+void initialSaveToFile() {
+    std::ofstream outputFile("wyniki.txt", std::ios::trunc);
+
+    if (!outputFile.is_open()) {
+        cerr << "Error opening output file." << std::endl;
+        return;
+    }
+
+    outputFile << "-1";
+
+    outputFile.close();
+}
+
 int main() {
+//    cout.precision(5);
+//    auto start_time = chrono::high_resolution_clock::now(); // Start stopera
+//
+//    extracted_data data_set = readingData("r1_2_1.txt");
+//    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+//    vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
+//
+//    int time = 10;
+//    solution best_solution = GRASP(data_set, distance_matrix, start_time, time);
+//
+//    double elapsed_time = getCurrentTime(start_time);
+//    cout << "Elapsed Time: " << elapsed_time << " seconds" << endl;
+//
+//    saveResultsToFile(best_solution);
+
+    auto start_time = chrono::steady_clock::now();  // Początkowy czas pomiaru
+
     cout.precision(5);
-    extracted_data data_set = readingData("RC2_4_4.txt");
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    extracted_data data_set = readingData("cvrptw2.txt");
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
-    int time = 5;
+    int time = 10;
+    initialSaveToFile();
+
+    // Utwórz wątek do monitorowania czasu
+    std::thread timerThread([&start_time, &time]() {
+        auto current_time = chrono::steady_clock::now();
+        auto elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+
+        while (elapsed_time <= time) {
+            cout << "Elapsed time: " << elapsed_time << " seconds.\n";
+            std::this_thread::sleep_for(std::chrono::seconds(1));  // Poczekaj 1 sekundę
+            current_time = chrono::steady_clock::now();
+            elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+        }
+
+        cout << "Time limit exceeded. Exiting...\n";
+        exit(0); // Lub inna odpowiednia akcja po przekroczeniu czasu
+    });
+
     solution best_solution = GRASP(data_set, distance_matrix, time);
     saveResultsToFile(best_solution);
 
+    // Zamknij wątek czasowy przed zakończeniem programu
+    timerThread.join();
 
     return 0;
+
 }
+
+
+
+
+
+
 
 // Wartości zmiennej time:
 // 1min = 60s
@@ -325,5 +388,7 @@ int main() {
  * zliczanie ilości rozwiąń
  * ZROBIONE - napisać instrukcje jak korzystać z programu
  *
+ *
+ * losowanie
  *
  */
