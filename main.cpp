@@ -318,15 +318,18 @@ void initialSaveResultsToFile() {
 
     outputFile.close();
 }
-
-int main(int argc, char* argv[]) {
+int main() {
+    string filename = "cvrptw1.txt";
+/////////////////////LINUX///////////////////////
+/*int main(int argc, char* argv[]) {
     if (argc != 2) {
         cout << "Wrong amount of arguments" << endl;
         cout << "./program_name.out input_name.txt" << endl;
         return 1;
     }
-    string filename = argv[1];
-    auto start_time = chrono::steady_clock::now();  // Początkowy czas pomiaru
+    string filename = argv[1];*/
+/////////////////////////////////////////////////
+    auto start_time = chrono::steady_clock::now();  // start pomiaru czasu
 
     initialSaveResultsToFile();
     cout.precision(5);
