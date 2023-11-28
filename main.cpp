@@ -104,7 +104,7 @@ inline double distance (double x, double y, double a, double b) {
     return sqrt(pow(x - a, 2) + pow(y - b, 2));
 }
 
-vector<vector<double>> createDistanceMatrix(const extracted_data data_set) {
+vector<vector<double>> createDistanceMatrix(const extracted_data& data_set) {
     vector<vector<double>> distance_matrix;
 
     for (const auto& w : data_set.vertexes) {
@@ -123,7 +123,7 @@ vector<vector<double>> createDistanceMatrix(const extracted_data data_set) {
 }
 
 //im mniejsze value tym wieksze prawdopodobienstwo na wylosowanie przez GRASP
-inline double countValue(const vector<vector<double>> distance_matrix, const vertex previous, const vertex next, const truck current_truck) {
+inline double countValue(const vector<vector<double>>& distance_matrix, const vertex previous, const vertex next, const truck current_truck) {
     double capacity_violation = (current_truck.how_much_left < next.commodity_need) ? 1.0 : 0.0; //za malo towaru
     double window_end_violation = (current_truck.distance + distance_matrix[previous.vertex_no][next.vertex_no] > next.window_end) ? 1.0 : 0.0; //za pozno przyjechal
     double window_start_waiting = max( (next.window_start - current_truck.distance + distance_matrix[previous.vertex_no][next.vertex_no]), 0.0); //ile czeka
@@ -136,7 +136,7 @@ inline double countValue(const vector<vector<double>> distance_matrix, const ver
 
 default_random_engine generator(random_device{}());
 
-inline int chooseVertex(const vector<vertex> candidate_list) {
+inline int chooseVertex(const vector<vertex>& candidate_list) {
     vector<double> weights; //zamiana value na wagi z zakresu (0;1)
     for (const vertex& v : candidate_list) {
         weights.push_back(1.0 / v.value);
@@ -147,7 +147,7 @@ inline int chooseVertex(const vector<vertex> candidate_list) {
     return distribution(generator); //wybrany indeks wierzcholka
 }
 
-inline truck updateTruckInfoPostShipment (truck truck, const vertex previous, const vertex next) {
+inline truck updateTruckInfoPostShipment (truck& truck, const vertex previous, const vertex next) {
     truck.visited.push_back(next);
 
     truck.how_much_left -= next.commodity_need;
@@ -195,6 +195,8 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
     temp_solution.acceptable = false;
     solution best_solution;
 
+    int new_truck = 0;
+
     //GRASP main body
     while (!candidate_list.empty()) {
         if (candidate_list.size() == 1) {
@@ -203,9 +205,12 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
         }
         else {
             //obliczanie miar dobroci wzgledem aktualnego wierzcholka
-            for (auto& candidate : candidate_list) {
-                candidate.value = countValue(distance_matrix, full_previous_vertex, candidate, current_truck);
-            }
+            transform(candidate_list.begin(), candidate_list.end(), candidate_list.begin(),
+                       [&](vertex& candidate) {
+                           candidate.value = countValue(distance_matrix, full_previous_vertex, candidate, current_truck);
+                           return candidate;
+                       }
+            );
             sort(candidate_list.begin(), candidate_list.end(), by_value());
 
             //wyznaczenie top x% kandydatow z ktorych bedzie losowany kolejny klient
@@ -228,16 +233,23 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
             || (current_truck.distance + distance_matrix[full_previous_vertex.vertex_no][full_next_vertex.vertex_no]
                 > full_next_vertex.window_end) ) { //nie dojedzie do klienta przed zamknieciem okna dostawy (ciezarowka konczy prace, za nia wchodzi kolejna)
 
-            current_truck = updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
-            next_vertex_no = 0;
-            full_previous_vertex = data_set.vertexes[0];
-            trucks.push_back(current_truck);
-            current_truck.distance = 0.0;
-            current_truck.how_much_left = data_set.capacity;
-            current_truck.visited.clear();
-            continue;
+            if (new_truck > 0) {
+                cout << "Exited, no feasible solution." << endl;
+                exit(0);
+            }
+            else {
+                new_truck++;
+                current_truck = updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
+                next_vertex_no = 0;
+                full_previous_vertex = data_set.vertexes[0];
+                trucks.push_back(current_truck);
+                current_truck.distance = 0.0;
+                current_truck.how_much_left = data_set.capacity;
+                current_truck.visited.clear();
+                continue;
+            }
         }
-
+        new_truck = 0;
         current_truck = updateTruckInfoPostShipment(current_truck, full_previous_vertex, full_next_vertex);
         full_previous_vertex = full_next_vertex;
         candidate_list.erase(candidate_list.begin() + next_vertex_no);
@@ -253,21 +265,7 @@ solution SingleGRASP (const extracted_data& data_set, const vector<vector<double
     return temp_solution;
 }
 
-solution GRASP (const extracted_data data_set, const vector<vector<double>> distance_matrix, const int time_limit) {
-    solution best_solution;
-    best_solution.truck_no = data_set.vehicle_number * 5; //dla pierwszego porownania z temp_solution
-    best_solution.acceptable = false;
-    solution temp_solution;
-    for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{time_limit}; now = chrono::steady_clock::now()) {
-        temp_solution = SingleGRASP(data_set, distance_matrix, time_limit);
-        if ((temp_solution.acceptable) && (best_solution.truck_no > temp_solution.truck_no)) {
-            best_solution = temp_solution;
-        }
-    }
-    return best_solution;
-}
-
-void saveResultsToFile(const solution best_solution) {
+void saveResultsToFile(const solution& best_solution) {
     std::ofstream outputFile("wyniki.txt", std::ios::trunc);
     if (!outputFile.is_open()) {
         cerr << "Error opening output file." << std::endl;
@@ -294,6 +292,22 @@ void saveResultsToFile(const solution best_solution) {
 
     outputFile.close();
 }
+
+solution GRASP (const extracted_data& data_set, const vector<vector<double>> distance_matrix, const int time_limit) {
+    solution best_solution;
+    best_solution.truck_no = data_set.vehicle_number * 5; //dla pierwszego porownania z temp_solution
+    best_solution.acceptable = false;
+    solution temp_solution;
+    for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{time_limit}; now = chrono::steady_clock::now()) {
+        temp_solution = SingleGRASP(data_set, distance_matrix, time_limit);
+        if ((temp_solution.acceptable) && (best_solution.truck_no > temp_solution.truck_no)) {
+            best_solution = temp_solution;
+            saveResultsToFile(best_solution);
+        }
+    }
+    return best_solution;
+}
+
 void initialSaveResultsToFile() {
     ofstream outputFile("wyniki.txt");
     if (!outputFile.is_open()) {
@@ -305,84 +319,43 @@ void initialSaveResultsToFile() {
     outputFile.close();
 }
 
-int main() {
-//    cout.precision(5);
-//    auto start_time = chrono::high_resolution_clock::now(); // Start stopera
-//
-//    extracted_data data_set = readingData("r1_2_1.txt");
-//    /////////////////////////////////////////////////////////////////////////////////////////////////////////
-//    vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
-//
-//    int time = 10;
-//    solution best_solution = GRASP(data_set, distance_matrix, start_time, time);
-//
-//    double elapsed_time = getCurrentTime(start_time);
-//    cout << "Elapsed Time: " << elapsed_time << " seconds" << endl;
-//
-//    saveResultsToFile(best_solution);
-
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        cout << "Wrong amount of arguments" << endl;
+        cout << "./program_name.out input_name.txt" << endl;
+        return 1;
+    }
+    string filename = argv[1];
     auto start_time = chrono::steady_clock::now();  // Początkowy czas pomiaru
 
     initialSaveResultsToFile();
     cout.precision(5);
-    extracted_data data_set = readingData("C101.txt");
+    extracted_data data_set = readingData(filename);
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
-    int time = 10;
+    /////////////////////////////////////////////////////////////////////////
+    const int time = 300; // TU NALEZY ZMIENIC CZAS [SEKUNDY]
+    ////////////////////////////////////////////////////////////////////////
 
-    // Utwórz wątek do monitorowania czasu
     std::thread timerThread([&start_time, &time]() {
         auto current_time = chrono::steady_clock::now();
         auto elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
 
         while (elapsed_time <= time) {
-            cout << "Elapsed time: " << elapsed_time << " seconds." << endl;
+            //cout << "Elapsed time: " << elapsed_time << " seconds." << endl;
             std::this_thread::sleep_for(std::chrono::seconds(1));  // Poczekaj 1 sekundę
             current_time = chrono::steady_clock::now();
             elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
         }
 
-        cout << "Time limit exceeded." << endl;
-        exit(0); // Lub inna odpowiednia akcja po przekroczeniu czasu
+        //cout << "Time limit exceeded." << endl;
+        exit(0);
     });
 
     solution best_solution = GRASP(data_set, distance_matrix, time);
-    saveResultsToFile(best_solution);
+    saveResultsToFile(best_solution); //best_solution jest na biezaco nadpisywane w pliku przy kazdym znalezieniu polepszajacego wyniku (czyli rzadko)
 
-    // Zamknij wątek czasowy przed zakończeniem programu
     timerThread.join();
 
     return 0;
-
 }
-
-
-
-
-
-
-
-// Wartości zmiennej time:
-// 1min = 60s
-// 2min = 120s
-// 3min = 180s
-// 4min = 240s
-// 5min = 300s
-
-//NOTATNIK BY ANTEK
-/*
- * ZROBIONE - Brak uwzględnienia w przyjeździe ciężarówki po czasie L do wierzchołka
- * ZROBIONE - Wyplucie ostatecznego wyniku po 3 lub 5 minutach
- * ZROBIONE - Zamkniecie pliku
- * ZROBIONE - na etapie porównywania rozwiązań w poszukiwaniu najlepszego należy zingnorować rozwiązanie któego ostatnia ciężarówka ma wartość -1 w dystans (warunek, że jak wszystkie są -1)
- *           Liczenie ile jest -1 i porównanie z ilością rozwiązań, jak tyle samo to rozwiązania nie ma
- * Obsluga bledow
- * ZROBIONE - greedy
- * zaokraglenia
- * zliczanie ilości rozwiąń
- * ZROBIONE - napisać instrukcje jak korzystać z programu
- *
- *
- * losowanie
- *
- */
