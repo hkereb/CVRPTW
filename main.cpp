@@ -29,6 +29,8 @@ struct vertex {
     int window_end; //koniec okna
     int unload_time; //czas rozładunku
     double value; //miara dobroci
+    double waiting_time_to_get_there; // ile czasu czekala ciezarowka na otwarcie okna
+    double current_distance;
 };
 struct truck {
     vector<vertex> visited; //odwiedzeni klienci
@@ -51,6 +53,10 @@ struct by_value {
     inline bool operator() (const vertex& a, const vertex& b) {
         return (a.value < b.value);
     }
+};
+struct possibility {
+    int id_i;
+    int id_j;
 };
 
 double getCurrentTime(const chrono::high_resolution_clock::time_point& start_time) {
@@ -147,9 +153,7 @@ inline int chooseVertex(const vector<vertex>& candidate_list) {
     return distribution(generator); //wybrany indeks wierzcholka
 }
 
-inline truck updateTruckInfoPostShipment (truck& truck, const vertex previous, const vertex next) {
-    truck.visited.push_back(next);
-
+inline truck updateTruckInfoPostShipment (truck& truck, const vertex previous, vertex next) {
     truck.how_much_left -= next.commodity_need;
 
     double distance_pc = distance(next.x, next.y, previous.x, previous.y);
@@ -157,6 +161,10 @@ inline truck updateTruckInfoPostShipment (truck& truck, const vertex previous, c
 
     double waiting_time = max(0.0, next.window_start - truck.distance); //dopiero przyjechał, czy czeka?
     truck.distance += waiting_time + next.unload_time;
+
+    next.current_distance = truck.distance;
+    next.waiting_time_to_get_there = waiting_time;
+    truck.visited.push_back(next);
 
     return truck;
 }
@@ -177,7 +185,7 @@ inline double finalDistance(const vector<truck> trucks) {
     return distance;
 }
 
-solution SingleGRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, const int time_limit) {
+solution singleGRASP (const extracted_data& data_set, const vector<vector<double>>& distance_matrix, const int time_limit) {
     int next_vertex_no = 0; //magazyn
     vertex full_previous_vertex = data_set.vertexes[0];
     vertex full_next_vertex = data_set.vertexes[0];
@@ -299,7 +307,7 @@ solution GRASP (const extracted_data& data_set, const vector<vector<double>> dis
     best_solution.acceptable = false;
     solution temp_solution;
     for (auto start = chrono::steady_clock::now(), now = start; now < start + chrono::seconds{time_limit}; now = chrono::steady_clock::now()) {
-        temp_solution = SingleGRASP(data_set, distance_matrix, time_limit);
+        temp_solution = singleGRASP(data_set, distance_matrix, time_limit);
         if ((temp_solution.acceptable) && (best_solution.truck_no > temp_solution.truck_no)) {
             best_solution = temp_solution;
             saveResultsToFile(best_solution);
@@ -318,6 +326,50 @@ void initialSaveResultsToFile() {
 
     outputFile.close();
 }
+
+double distanceSimulationLS(const extracted_data& data_set, vector<vector<double>> distance_matrix, double distance, int i, int s_i, int s_j, int j, int truck_id) {
+    //odejmij dystans z lukow ktore maja zostac zamienione (REALNE ID Z DATA SET)
+    distance -= (distance_matrix[i][s_i] - data_set.vertexes[s_i].unload_time - data_set.vertexes[s_i].waiting_time_to_get_there)
+            - (distance_matrix[j][s_j] - data_set.vertexes[s_j].unload_time - data_set.vertexes[s_j].waiting_time_to_get_there);
+
+    //dodaj dystanc lukow ktory dodajesz w miejsce starych
+    double waiting_time_1 = max(0.0, data_set.vertexes[j].window_start - (data_set.vertexes[i].current_distance + distance_matrix[i][j]) );
+    double waiting_time_2= max(0.0, data_set.vertexes[s_j].window_start - (data_set.vertexes[s_i].current_distance + distance_matrix[i][j]) );
+    distance += (distance_matrix[i][j] + waiting_time_1 + data_set.vertexes[j].unload_time)
+                + (distance_matrix[s_i][s_j] + waiting_time_2 + data_set.vertexes[s_j].unload_time);
+}
+
+vector<possibility> findPossibilities(const solution& solution) { // per trasa
+    vector<possibility> possibilities;
+    for (int truck_id = 0; truck_id < solution.trucks.size(); ++truck_id) {
+        for (int i = 0; i < solution.trucks[truck_id].visited.size(); ++i) {
+                for (int j = i + 1; j < solution.trucks[truck_id].visited.size(); ++j) {
+                //sprawdzanie czy dwa luki moga byc zmodyfikowane
+
+                //symulacja final distance
+
+                double simulated_distance; // dopisz reszte
+                if (simulated_distance < solution.trucks[truck_id].distance) {
+                    //podmien dystans
+                }
+            }
+        }
+    }
+    return possibilities;
+}
+
+solution localSearch(const solution init, vector<vector<double>> distance_matrix) {
+    solution temp, best_solution;
+    int i = 0;
+    int last_i = 0;
+    bool no_improvement = false;
+
+    while(!no_improvement) { // i wrocil sie bez zadnej poprawy
+
+    }
+    return best_solution;
+}
+
 int main() {
     string filename = "cvrptw1.txt";
 /////////////////////LINUX///////////////////////
