@@ -327,19 +327,20 @@ void initialSaveResultsToFile() {
     outputFile.close();
 }
 
-double distanceSimulationLS(const extracted_data& data_set, vector<vector<double>> distance_matrix, double distance, int i, int s_i, int s_j, int j, int truck_id) {
+double distanceSimulationLS(const extracted_data& data_set, vector<vector<double>> distance_matrix, double distance, int i, int s_i, int s_j, int j) {
     //odejmij dystans z lukow ktore maja zostac zamienione (REALNE ID Z DATA SET)
     distance -= (distance_matrix[i][s_i] - data_set.vertexes[s_i].unload_time - data_set.vertexes[s_i].waiting_time_to_get_there)
             - (distance_matrix[j][s_j] - data_set.vertexes[s_j].unload_time - data_set.vertexes[s_j].waiting_time_to_get_there);
 
-    //dodaj dystanc lukow ktory dodajesz w miejsce starych
+    //dodaj dystans lukow ktory dodajesz w miejsce starych
     double waiting_time_1 = max(0.0, data_set.vertexes[j].window_start - (data_set.vertexes[i].current_distance + distance_matrix[i][j]) );
     double waiting_time_2= max(0.0, data_set.vertexes[s_j].window_start - (data_set.vertexes[s_i].current_distance + distance_matrix[i][j]) );
     distance += (distance_matrix[i][j] + waiting_time_1 + data_set.vertexes[j].unload_time)
                 + (distance_matrix[s_i][s_j] + waiting_time_2 + data_set.vertexes[s_j].unload_time);
+    return distance;
 }
 
-vector<possibility> findPossibilities(const solution& solution) { // per trasa
+vector<possibility> findPossibilities(const solution& solution, const extracted_data& data_set, vector<vector<double>> distance_matrix) { // per trasa
     vector<possibility> possibilities;
     for (int truck_id = 0; truck_id < solution.trucks.size(); ++truck_id) {
         for (int i = 0; i < solution.trucks[truck_id].visited.size(); ++i) {
@@ -349,7 +350,7 @@ vector<possibility> findPossibilities(const solution& solution) { // per trasa
                 //symulacja final distance
 
                 double simulated_distance; // dopisz reszte
-                if (simulated_distance < solution.trucks[truck_id].distance) {
+                if (distanceSimulationLS(data_set, distance_matrix, solution.trucks[truck_id].distance, solution.trucks[truck_id].visited[i].vertex_no, solution.trucks[truck_id].visited[j].vertex_no, solution.trucks[truck_id].visited[i + 1].vertex_no, solution.trucks[truck_id].visited[j + 1].vertex_no) < solution.trucks[truck_id].distance) {
                     //podmien dystans
                 }
             }
