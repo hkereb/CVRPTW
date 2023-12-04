@@ -57,6 +57,9 @@ struct by_value {
 struct possibility {
     int id_i;
     int id_j;
+    int id_s_i;
+    int id_s_j;
+    int truck_id;
 };
 
 double getCurrentTime(const chrono::high_resolution_clock::time_point& start_time) {
@@ -162,9 +165,10 @@ inline truck updateTruckInfoPostShipment (truck& truck, const vertex previous, v
     double waiting_time = max(0.0, next.window_start - truck.distance); //dopiero przyjechał, czy czeka?
     truck.distance += waiting_time + next.unload_time;
 
-    next.current_distance = truck.distance;
-    next.waiting_time_to_get_there = waiting_time;
     truck.visited.push_back(next);
+
+    truck.visited[truck.visited.size() - 1].current_distance = truck.distance;
+    truck.visited[truck.visited.size() - 1].waiting_time_to_get_there = waiting_time;
 
     return truck;
 }
@@ -327,52 +331,74 @@ void initialSaveResultsToFile() {
     outputFile.close();
 }
 
-double distanceSimulationLS(const extracted_data& data_set, vector<vector<double>> distance_matrix, double distance, int i, int s_i, int s_j, int j) {
-    //odejmij dystans z lukow ktore maja zostac zamienione (REALNE ID Z DATA SET)
-    distance -= (distance_matrix[i][s_i] - data_set.vertexes[s_i].unload_time - data_set.vertexes[s_i].waiting_time_to_get_there)
-            - (distance_matrix[j][s_j] - data_set.vertexes[s_j].unload_time - data_set.vertexes[s_j].waiting_time_to_get_there);
-
-    //dodaj dystans lukow ktory dodajesz w miejsce starych
-    double waiting_time_1 = max(0.0, data_set.vertexes[j].window_start - (data_set.vertexes[i].current_distance + distance_matrix[i][j]) );
-    double waiting_time_2= max(0.0, data_set.vertexes[s_j].window_start - (data_set.vertexes[s_i].current_distance + distance_matrix[i][j]) );
-    distance += (distance_matrix[i][j] + waiting_time_1 + data_set.vertexes[j].unload_time)
-                + (distance_matrix[s_i][s_j] + waiting_time_2 + data_set.vertexes[s_j].unload_time);
-    return distance;
+void perform2OptMove(solution& temp_solution, int i, int j, int truck_id) {
+    int s_i = i + 1;
+    iter_swap(temp_solution.trucks[truck_id].visited.begin() + s_i, temp_solution.trucks[truck_id].visited.begin() + j);
 }
 
-vector<possibility> findPossibilities(const solution& solution, const extracted_data& data_set, vector<vector<double>> distance_matrix) { // per trasa
-    vector<possibility> possibilities;
-    for (int truck_id = 0; truck_id < solution.trucks.size(); ++truck_id) {
-        for (int i = 0; i < solution.trucks[truck_id].visited.size(); ++i) {
-                for (int j = i + 1; j < solution.trucks[truck_id].visited.size(); ++j) {
-                //sprawdzanie czy dwa luki moga byc zmodyfikowane
+bool isRouteValid(vector<vertex>& visited, int starting_index, const vector<vector<double>> distance_matrix) {
+    //czy ciezarowka zdazy do kazdego wierzcholka? (wlacznie z magazynem)
+    for (int i = starting_index; i < visited.size(); i++) {
+        vertex previous;
+        if (i == 0) {
+            previous.vertex_no = 0;
+            previous.current_distance = 0;
+        }
+        else {
+            previous = visited[i - 1];
+        }
+        vertex current = visited[i];
+        double temp_distance = previous.current_distance + distance_matrix[previous.vertex_no][current.vertex_no];
+        if (temp_distance > current.window_end) {
+            return false;
+        }
+        double waiting_time =  max(0.0, current.window_start - temp_distance);
+        current.current_distance = temp_distance + waiting_time + current.unload_time;
+    }
 
-                //symulacja final distance
+    return true;
+}
 
-                double simulated_distance; // dopisz reszte
-                if (distanceSimulationLS(data_set, distance_matrix, solution.trucks[truck_id].distance, solution.trucks[truck_id].visited[i].vertex_no, solution.trucks[truck_id].visited[j].vertex_no, solution.trucks[truck_id].visited[i + 1].vertex_no, solution.trucks[truck_id].visited[j + 1].vertex_no) < solution.trucks[truck_id].distance) {
-                    //podmien dystans
+solution localSearch(const solution& init, const vector<vector<double>> distance_matrix, const extracted_data& data_set) {
+    solution temp_solution = init;
+    solution best_solution = init;
+    bool improvement_found;
+
+    while(improvement_found) { // i wrocil sie bez zadnej poprawy
+        improvement_found = false;
+        for (int t = 0; t < best_solution.truck_no; t++) {
+            int N = best_solution.trucks[t].visited.size();
+            for (int i = 0; i < N - 1; i++) {
+                vertex ver_i = best_solution.trucks[t].visited[i];
+                vertex ver_si = best_solution.trucks[t].visited[i + 1];
+                for (int j = i + 2; j < N; j++) {
+                    vertex ver_j = best_solution.trucks[t].visited[j];
+                    vertex ver_sj = best_solution.trucks[t].visited[j + 1];
+                    if (ver_i.vertex_no != ver_j.vertex_no
+                    && ver_j.vertex_no != ver_si.vertex_no
+                    && ver_i.vertex_no != ver_sj.vertex_no) {
+                        perform2OptMove(temp_solution, i, j, t);
+                        if (isRouteValid) {
+                            temp_solution.trucks[t].distance = temp_solution.trucks[t].visited.back().current_distance;
+                            if (temp_solution.trucks[t].distance < best_solution.trucks[t].distance) {
+                                best_solution = temp_solution;
+                                improvement_found = true;
+                                break;
+                            }
+                        }
+                        temp_solution = best_solution;
+                    }
                 }
             }
         }
     }
-    return possibilities;
-}
+    best_solution.final_distance = finalDistance(best_solution.trucks);
 
-solution localSearch(const solution init, vector<vector<double>> distance_matrix) {
-    solution temp, best_solution;
-    int i = 0;
-    int last_i = 0;
-    bool no_improvement = false;
-
-    while(!no_improvement) { // i wrocil sie bez zadnej poprawy
-
-    }
     return best_solution;
 }
 
 int main() {
-    string filename = "cvrptw1.txt";
+    string filename = "RC210_2.TXT";
 /////////////////////LINUX///////////////////////
 /*int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -390,28 +416,45 @@ int main() {
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
     /////////////////////////////////////////////////////////////////////////
-    const int time = 300; // TU NALEZY ZMIENIC CZAS [SEKUNDY]
+    const int time = 20; // TU NALEZY ZMIENIC CZAS [SEKUNDY]
     ////////////////////////////////////////////////////////////////////////
 
-    std::thread timerThread([&start_time, &time]() {
-        auto current_time = chrono::steady_clock::now();
-        auto elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+//    std::thread timerThread([&start_time, &time]() {
+//        auto current_time = chrono::steady_clock::now();
+//        auto elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+//
+//        while (elapsed_time <= time) {
+//            cout << "Elapsed time: " << elapsed_time << " seconds." << endl;
+//            std::this_thread::sleep_for(std::chrono::seconds(1));  // Poczekaj 1 sekundę
+//            current_time = chrono::steady_clock::now();
+//            elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+//        }
+//
+//        cout << "Time limit exceeded." << endl;
+//        exit(0);
+//    });
 
-        while (elapsed_time <= time) {
-            //cout << "Elapsed time: " << elapsed_time << " seconds." << endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));  // Poczekaj 1 sekundę
-            current_time = chrono::steady_clock::now();
-            elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
-        }
+    solution best_solution = singleGRASP(data_set, distance_matrix, time);
+    //solution best_solution = GRASP(data_set, distance_matrix, time);
+    //saveResultsToFile(best_solution); //best_solution jest na biezaco nadpisywane w pliku przy kazdym znalezieniu polepszajacego wyniku (czyli rzadko)
+    cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
+    solution updated_solution = localSearch(best_solution, distance_matrix, data_set);
+    cout << updated_solution.truck_no << " " << updated_solution.final_distance << endl;
 
-        //cout << "Time limit exceeded." << endl;
-        exit(0);
-    });
-
-    solution best_solution = GRASP(data_set, distance_matrix, time);
-    saveResultsToFile(best_solution); //best_solution jest na biezaco nadpisywane w pliku przy kazdym znalezieniu polepszajacego wyniku (czyli rzadko)
-
-    timerThread.join();
+    //timerThread.join();
 
     return 0;
 }
+
+
+
+//NOTATKI BY ANTEK V2
+/*Działanie algorytmu pod kryptonionem "PRZESZUKIWANIE LOKALNE":
+ * 1. Stwoerzenie sąsiedztwa poprzez sprawdzenie, które wierzchołki można zamienić i czy nie pogorszą one rozwiązania (sąsiedztwo jest osobne dla każdego wierzchołka)
+ * 2. Wybór wierzchołka z sąsiedztwa do zamiany
+ * 3. Zamiana wierzchołków
+ * 4. Zaktualizowanie kosztów trasy
+ * 5.(Opcjonalnie) Próba dopasowania pojedyńczych tras do zmodyfikowanych tras
+ * 6.
+ * 7.
+ */
