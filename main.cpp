@@ -362,7 +362,7 @@ bool isRouteValid(vector<vertex>& visited, int starting_index, const vector<vect
 solution localSearch(const solution& init, const vector<vector<double>> distance_matrix, const extracted_data& data_set) {
     solution temp_solution = init;
     solution best_solution = init;
-    bool improvement_found;
+    bool improvement_found = true;
 
     while(improvement_found) { // i wrocil sie bez zadnej poprawy
         improvement_found = false;
@@ -398,7 +398,7 @@ solution localSearch(const solution& init, const vector<vector<double>> distance
 }
 
 int main() {
-    string filename = "RC210_2.TXT";
+    string filename = "R203.txt";
 /////////////////////LINUX///////////////////////
 /*int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -440,6 +440,7 @@ int main() {
     cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
     solution updated_solution = localSearch(best_solution, distance_matrix, data_set);
     cout << updated_solution.truck_no << " " << updated_solution.final_distance << endl;
+    saveResultsToFile(updated_solution);
 
     //timerThread.join();
 
