@@ -36,6 +36,7 @@ struct truck {
     vector<vertex> visited; //odwiedzeni klienci
     int how_much_left; //ile pozostalo towaru
     double distance; //aktualny dystans
+    bool acceptable;
 };
 //struktura pomocnicza do wczytywania pliku
 struct extracted_data {
@@ -331,31 +332,108 @@ void initialSaveResultsToFile() {
     outputFile.close();
 }
 
-void perform2OptMove(solution& temp_solution, int i, int j, int truck_id) {
-    int s_i = i + 1;
-    iter_swap(temp_solution.trucks[truck_id].visited.begin() + s_i, temp_solution.trucks[truck_id].visited.begin() + j);
+//void perform2OptMove(solution& temp_solution, int i, int j, int truck_id) {
+//    int s_i = i + 1;
+//    iter_swap(temp_solution.trucks[truck_id].visited.begin() + s_i, temp_solution.trucks[truck_id].visited.begin() + j);
+//}
+//
+//bool isRouteValid(vector<vertex>& visited, int starting_index, const vector<vector<double>> distance_matrix) {
+//    //czy ciezarowka zdazy do kazdego wierzcholka? (wlacznie z magazynem)
+//    for (int i = starting_index; i < visited.size(); i++) {
+//        vertex previous;
+//        if (i == 0) {
+//            previous.vertex_no = 0;
+//            previous.current_distance = 0;
+//        }
+//        else {
+//            previous = visited[i - 1];
+//        }
+//        vertex current = visited[i];
+//        double temp_distance = previous.current_distance + distance_matrix[previous.vertex_no][current.vertex_no];
+//        if (temp_distance > current.window_end) {
+//            return false;
+//        }
+//        double waiting_time =  max(0.0, current.window_start - temp_distance);
+//        current.current_distance = temp_distance + waiting_time + current.unload_time;
+//    }
+//
+//    return true;
+//}
+//
+//solution localSearch(const solution& init, const vector<vector<double>> distance_matrix, const extracted_data& data_set) {
+//    solution temp_solution = init;
+//    solution best_solution = init;
+//    bool improvement_found = true;
+//
+//    while(improvement_found) { // i wrocil sie bez zadnej poprawy
+//        improvement_found = false;
+//        for (int t = 0; t < best_solution.truck_no; t++) {
+//            int N = best_solution.trucks[t].visited.size();
+//            for (int i = 0; i < N - 4; i++) {
+//                vertex ver_i = best_solution.trucks[t].visited[i];
+//                vertex ver_si = best_solution.trucks[t].visited[i + 1];
+//                for (int j = i + 2; j < N - 1; j++) {
+//                    vertex ver_j = best_solution.trucks[t].visited[j];
+//                    vertex ver_sj = best_solution.trucks[t].visited[j + 1];
+//                    if (ver_i.vertex_no != ver_j.vertex_no
+//                    && ver_j.vertex_no != ver_si.vertex_no
+//                    && ver_i.vertex_no != ver_sj.vertex_no) {
+//                        perform2OptMove(temp_solution, i, j, t);
+//                        if (isRouteValid(temp_solution.trucks[t].visited, i, distance_matrix)) {
+//                            temp_solution.trucks[t].distance = temp_solution.trucks[t].visited.back().current_distance;
+//                            if (temp_solution.trucks[t].distance < best_solution.trucks[t].distance) {
+//                                best_solution = temp_solution;
+//                                improvement_found = true;
+//                                break;
+//                            }
+
+//                        }
+//                        temp_solution = best_solution;
+//                    }
+//                }
+//            }
+//        }
+//    }
+//    best_solution.final_distance = finalDistance(best_solution.trucks);
+//
+//    return best_solution;
+//}
+
+bool performExchangeMove(solution& temp_solution, int i, int j, int t_i, int t_j) {
+        if (temp_solution.trucks[t_i].visited[i].vertex_no != 0 && temp_solution.trucks[t_j].visited[j].vertex_no != 0) {
+            swap(temp_solution.trucks[t_i].visited[i], temp_solution.trucks[t_j].visited[j]);
+            return true;
+        }
+        //iter_swap(temp_solution.trucks[t_from].visited.begin() + i, temp_solution.trucks[t_to].visited.begin() + i);
+        else {
+            return false;
+        }
 }
 
-bool isRouteValid(vector<vertex>& visited, int starting_index, const vector<vector<double>> distance_matrix) {
+bool isRouteValid(solution& temp_solution, int starting_index, const vector<vector<double>> distance_matrix, int truck_id) {
     //czy ciezarowka zdazy do kazdego wierzcholka? (wlacznie z magazynem)
-    for (int i = starting_index; i < visited.size(); i++) {
+    for (int i = starting_index; i < temp_solution.trucks[truck_id].visited.size(); i++) {
+        temp_solution.trucks[truck_id].visited[i].current_distance = 0;
         vertex previous;
         if (i == 0) {
             previous.vertex_no = 0;
             previous.current_distance = 0;
         }
         else {
-            previous = visited[i - 1];
+            previous = temp_solution.trucks[truck_id].visited[i - 1];
+
         }
-        vertex current = visited[i];
+        vertex current = temp_solution.trucks[truck_id].visited[i];
         double temp_distance = previous.current_distance + distance_matrix[previous.vertex_no][current.vertex_no];
         if (temp_distance > current.window_end) {
+            temp_solution.trucks[truck_id].acceptable = false;
             return false;
         }
         double waiting_time =  max(0.0, current.window_start - temp_distance);
-        current.current_distance = temp_distance + waiting_time + current.unload_time;
+        temp_solution.trucks[truck_id].visited[i].current_distance = temp_distance + waiting_time + current.unload_time;
     }
 
+    temp_solution.trucks[truck_id].acceptable = true;
     return true;
 }
 
@@ -364,41 +442,47 @@ solution localSearch(const solution& init, const vector<vector<double>> distance
     solution best_solution = init;
     bool improvement_found = true;
 
-    while(improvement_found) { // i wrocil sie bez zadnej poprawy
+    while (improvement_found) {
         improvement_found = false;
-        for (int t = 0; t < best_solution.truck_no; t++) {
-            int N = best_solution.trucks[t].visited.size();
-            for (int i = 0; i < N - 1; i++) {
-                vertex ver_i = best_solution.trucks[t].visited[i];
-                vertex ver_si = best_solution.trucks[t].visited[i + 1];
-                for (int j = i + 2; j < N; j++) {
-                    vertex ver_j = best_solution.trucks[t].visited[j];
-                    vertex ver_sj = best_solution.trucks[t].visited[j + 1];
-                    if (ver_i.vertex_no != ver_j.vertex_no
-                    && ver_j.vertex_no != ver_si.vertex_no
-                    && ver_i.vertex_no != ver_sj.vertex_no) {
-                        perform2OptMove(temp_solution, i, j, t);
-                        if (isRouteValid) {
-                            temp_solution.trucks[t].distance = temp_solution.trucks[t].visited.back().current_distance;
-                            if (temp_solution.trucks[t].distance < best_solution.trucks[t].distance) {
-                                best_solution = temp_solution;
-                                improvement_found = true;
-                                break;
+
+        for (int t_i = 0; t_i < best_solution.trucks.size(); t_i++) {
+            for (int i = 0; i < best_solution.trucks[t_i].visited.size() - 1; i++) {
+                for (int t_j = 0; t_j < best_solution.trucks.size(); t_j++) {
+                    for (int j = 0; j < best_solution.trucks[t_j].visited.size() - 1; j++) {
+                        if (t_i != t_j) {
+                            if ( performExchangeMove(temp_solution, i, j, t_i, t_j) ) {
+                                if (isRouteValid(temp_solution, 0, distance_matrix, t_i) &&
+                                    isRouteValid(temp_solution, 0, distance_matrix, t_j)) {
+                                    temp_solution.trucks[t_i].distance = temp_solution.trucks[t_i].visited.back().current_distance;
+                                    temp_solution.trucks[t_j].distance = temp_solution.trucks[t_j].visited.back().current_distance;
+                                    temp_solution.final_distance = finalDistance(temp_solution.trucks);
+
+                                    if (temp_solution.final_distance < best_solution.final_distance) {
+                                        //znalazl polepszenie
+                                        best_solution = temp_solution;
+                                        improvement_found = true;
+                                        cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
+                                        break;
+                                    }
+                                }
+                                //nie znalazl polepszenia
+                                temp_solution = best_solution;
                             }
                         }
-                        temp_solution = best_solution;
+                        else {
+                            break;
+                        }
                     }
                 }
             }
         }
     }
-    best_solution.final_distance = finalDistance(best_solution.trucks);
 
     return best_solution;
 }
 
 int main() {
-    string filename = "R203.txt";
+    string filename = "RC2_2_5.txt";
 /////////////////////LINUX///////////////////////
 /*int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -458,4 +542,12 @@ int main() {
  * 5.(Opcjonalnie) Próba dopasowania pojedyńczych tras do zmodyfikowanych tras
  * 6.
  * 7.
+ *
+ *
+ *
+ * WAŻNE:
+ * - DODAĆ PĘTLE CZASOWĄ
+ * - ZAPISYWANIE DO PLIKU PO KAŻDYM POLEPSZENIU
+ * - ZMIANA CAPACITY - NAPRAWIC
+ * - W ANKIETACH NA KONIEC ROKU OBSRAĆ D
  */
