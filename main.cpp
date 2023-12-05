@@ -31,6 +31,7 @@ struct vertex {
     double value; //miara dobroci
     double waiting_time_to_get_there; // ile czasu czekala ciezarowka na otwarcie okna
     double current_distance;
+    double how_much_left_in_truck;
 };
 struct truck {
     vector<vertex> visited; //odwiedzeni klienci
@@ -170,6 +171,7 @@ inline truck updateTruckInfoPostShipment (truck& truck, const vertex previous, v
 
     truck.visited[truck.visited.size() - 1].current_distance = truck.distance;
     truck.visited[truck.visited.size() - 1].waiting_time_to_get_there = waiting_time;
+    truck.visited[truck.visited.size() - 1].how_much_left_in_truck = truck.how_much_left;
 
     return truck;
 }
@@ -410,30 +412,34 @@ bool performExchangeMove(solution& temp_solution, int i, int j, int t_i, int t_j
         }
 }
 
-bool isRouteValid(solution& temp_solution, int starting_index, const vector<vector<double>> distance_matrix, int truck_id) {
-    //czy ciezarowka zdazy do kazdego wierzcholka? (wlacznie z magazynem)
+bool isRouteValid(solution& temp_solution, int starting_index, const vector<vector<double>> distance_matrix, int truck_id, int capacity) {
+    //czy ciezarowka zdazy do kazdego wierzcholka? (wlacznie z magazynem), czy zgadza sie ilosc towaru?
     for (int i = starting_index; i < temp_solution.trucks[truck_id].visited.size(); i++) {
         temp_solution.trucks[truck_id].visited[i].current_distance = 0;
         vertex previous;
         if (i == 0) {
             previous.vertex_no = 0;
             previous.current_distance = 0;
+            previous.how_much_left_in_truck = capacity;
         }
         else {
             previous = temp_solution.trucks[truck_id].visited[i - 1];
 
         }
         vertex current = temp_solution.trucks[truck_id].visited[i];
+
+        if (previous.how_much_left_in_truck < current.commodity_need) {
+            return false;
+        }
+        temp_solution.trucks[truck_id].visited[i].how_much_left_in_truck = previous.how_much_left_in_truck - current.commodity_need;
         double temp_distance = previous.current_distance + distance_matrix[previous.vertex_no][current.vertex_no];
         if (temp_distance > current.window_end) {
-            temp_solution.trucks[truck_id].acceptable = false;
             return false;
         }
         double waiting_time =  max(0.0, current.window_start - temp_distance);
         temp_solution.trucks[truck_id].visited[i].current_distance = temp_distance + waiting_time + current.unload_time;
     }
 
-    temp_solution.trucks[truck_id].acceptable = true;
     return true;
 }
 
@@ -451,8 +457,8 @@ solution localSearch(const solution& init, const vector<vector<double>> distance
                     for (int j = 0; j < best_solution.trucks[t_j].visited.size() - 1; j++) {
                         if (t_i != t_j) {
                             if ( performExchangeMove(temp_solution, i, j, t_i, t_j) ) {
-                                if (isRouteValid(temp_solution, 0, distance_matrix, t_i) &&
-                                    isRouteValid(temp_solution, 0, distance_matrix, t_j)) {
+                                if (isRouteValid(temp_solution, i, distance_matrix, t_i, data_set.capacity) &&
+                                    isRouteValid(temp_solution, j, distance_matrix, t_j, data_set.capacity) ) {
                                     temp_solution.trucks[t_i].distance = temp_solution.trucks[t_i].visited.back().current_distance;
                                     temp_solution.trucks[t_j].distance = temp_solution.trucks[t_j].visited.back().current_distance;
                                     temp_solution.final_distance = finalDistance(temp_solution.trucks);
@@ -461,7 +467,8 @@ solution localSearch(const solution& init, const vector<vector<double>> distance
                                         //znalazl polepszenie
                                         best_solution = temp_solution;
                                         improvement_found = true;
-                                        cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
+                                        saveResultsToFile(best_solution);
+                                        //cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
                                         break;
                                     }
                                 }
@@ -482,8 +489,8 @@ solution localSearch(const solution& init, const vector<vector<double>> distance
 }
 
 int main() {
-    string filename = "RC2_2_5.txt";
-/////////////////////LINUX///////////////////////
+    string filename = "RC2_8_4.txt";
+///////////////////// LINUX ///////////////////////
 /*int main(int argc, char* argv[]) {
     if (argc != 2) {
         cout << "Wrong amount of arguments" << endl;
@@ -491,7 +498,7 @@ int main() {
         return 1;
     }
     string filename = argv[1];*/
-/////////////////////////////////////////////////
+///////////////////////////////////////////////////
     auto start_time = chrono::steady_clock::now();  // start pomiaru czasu
 
     initialSaveResultsToFile();
@@ -500,33 +507,38 @@ int main() {
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
     /////////////////////////////////////////////////////////////////////////
-    const int time = 20; // TU NALEZY ZMIENIC CZAS [SEKUNDY]
+    const int time = 10; // TU NALEZY ZMIENIC CZAS [SEKUNDY]
     ////////////////////////////////////////////////////////////////////////
 
-//    std::thread timerThread([&start_time, &time]() {
-//        auto current_time = chrono::steady_clock::now();
-//        auto elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
-//
-//        while (elapsed_time <= time) {
-//            cout << "Elapsed time: " << elapsed_time << " seconds." << endl;
-//            std::this_thread::sleep_for(std::chrono::seconds(1));  // Poczekaj 1 sekundę
-//            current_time = chrono::steady_clock::now();
-//            elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
-//        }
-//
-//        cout << "Time limit exceeded." << endl;
-//        exit(0);
-//    });
+    std::thread timerThread([&start_time, &time]() {
+        auto current_time = chrono::steady_clock::now();
+        auto elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
 
+        while (elapsed_time <= time) {
+            cout << "Elapsed time: " << elapsed_time << " seconds." << endl;
+            std::this_thread::sleep_for(std::chrono::seconds(1));  // Poczekaj 1 sekundę
+            current_time = chrono::steady_clock::now();
+            elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+        }
+
+        cout << "Time limit exceeded." << endl;
+        exit(0);
+    });
+
+    ////////////////////////////// WYWOLANIE GRASP //////////////////////////////
     solution best_solution = singleGRASP(data_set, distance_matrix, time);
     //solution best_solution = GRASP(data_set, distance_matrix, time);
     //saveResultsToFile(best_solution); //best_solution jest na biezaco nadpisywane w pliku przy kazdym znalezieniu polepszajacego wyniku (czyli rzadko)
     cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
+    /////////////////////////////////////////////////////////////////////////////
+
+    /////////////////////////// WYWOLANIE LOCAL SEARCH //////////////////////////
     solution updated_solution = localSearch(best_solution, distance_matrix, data_set);
     cout << updated_solution.truck_no << " " << updated_solution.final_distance << endl;
     saveResultsToFile(updated_solution);
+    /////////////////////////////////////////////////////////////////////////////
 
-    //timerThread.join();
+    timerThread.join();
 
     return 0;
 }
@@ -546,8 +558,8 @@ int main() {
  *
  *
  * WAŻNE:
- * - DODAĆ PĘTLE CZASOWĄ
- * - ZAPISYWANIE DO PLIKU PO KAŻDYM POLEPSZENIU
- * - ZMIANA CAPACITY - NAPRAWIC
- * - W ANKIETACH NA KONIEC ROKU OBSRAĆ D
+ * - DODAĆ PĘTLE CZASOWĄ \/
+ * - ZAPISYWANIE DO PLIKU PO KAŻDYM POLEPSZENIU \/
+ * - ZMIANA CAPACITY - NAPRAWIC \/
+ * - PROBA ZMNIEJSZENIA LICZBY UZYWANYCH CIEZAROWEK
  */
