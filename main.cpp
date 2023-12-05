@@ -402,14 +402,34 @@ void initialSaveResultsToFile() {
 //}
 
 bool performExchangeMove(solution& temp_solution, int i, int j, int t_i, int t_j) {
-        if (temp_solution.trucks[t_i].visited[i].vertex_no != 0 && temp_solution.trucks[t_j].visited[j].vertex_no != 0) {
-            swap(temp_solution.trucks[t_i].visited[i], temp_solution.trucks[t_j].visited[j]);
+    if (temp_solution.trucks[t_i].visited[i].vertex_no != 0 && temp_solution.trucks[t_j].visited[j].vertex_no != 0) {
+        swap(temp_solution.trucks[t_i].visited[i], temp_solution.trucks[t_j].visited[j]);
+        return true;
+    }
+
+    return false;
+}
+
+bool performShiftMove(solution& temp_solution, int i, int j, int t_i, int t_j) {
+    // i to wierzcholek ktorym chcemy manipulowac, k to pozycja na jakiej chcemy wstawic wierzcholek, k = j + 1
+    int k = j;
+    if (temp_solution.trucks[t_i].visited[i].vertex_no != 0 && k < temp_solution.trucks[t_i].visited.size() - 1) { // i nie jest magazynem oraz nie wstawiamy go w miejsce magazynu
+            // dokonaj wstawienia
+            auto it = std::make_move_iterator(temp_solution.trucks[t_i].visited.begin() + i);
+            auto insertPosition = temp_solution.trucks[t_j].visited.begin() + k;
+            temp_solution.trucks[t_j].visited.insert(insertPosition, std::make_move_iterator(it), std::make_move_iterator(it + 1));
+
+            temp_solution.trucks[t_i].visited.erase(temp_solution.trucks[t_i].visited.begin() + i);
+
+            // trasa stala sie pusta po zamianie, usuniecie ciezarowki
+            if (temp_solution.trucks[t_i].visited.empty()) {
+                temp_solution.trucks.erase(temp_solution.trucks.begin() + t_i);
+            }
+
             return true;
-        }
-        //iter_swap(temp_solution.trucks[t_from].visited.begin() + i, temp_solution.trucks[t_to].visited.begin() + i);
-        else {
-            return false;
-        }
+    }
+
+    return false;
 }
 
 bool isRouteValid(solution& temp_solution, int starting_index, const vector<vector<double>> distance_matrix, int truck_id, int capacity) {
@@ -456,7 +476,7 @@ solution localSearch(const solution& init, const vector<vector<double>> distance
                 for (int t_j = 0; t_j < best_solution.trucks.size(); t_j++) {
                     for (int j = 0; j < best_solution.trucks[t_j].visited.size() - 1; j++) {
                         if (t_i != t_j) {
-                            if ( performExchangeMove(temp_solution, i, j, t_i, t_j) ) {
+                            if (performExchangeMove(temp_solution, i, j, t_i, t_j) ) {
                                 if (isRouteValid(temp_solution, i, distance_matrix, t_i, data_set.capacity) &&
                                     isRouteValid(temp_solution, j, distance_matrix, t_j, data_set.capacity) ) {
                                     temp_solution.trucks[t_i].distance = temp_solution.trucks[t_i].visited.back().current_distance;
@@ -464,7 +484,7 @@ solution localSearch(const solution& init, const vector<vector<double>> distance
                                     temp_solution.final_distance = finalDistance(temp_solution.trucks);
 
                                     if (temp_solution.final_distance < best_solution.final_distance) {
-                                        //znalazl polepszenie
+                                        // znalazl polepszenie
                                         best_solution = temp_solution;
                                         improvement_found = true;
                                         saveResultsToFile(best_solution);
@@ -472,7 +492,7 @@ solution localSearch(const solution& init, const vector<vector<double>> distance
                                         break;
                                     }
                                 }
-                                //nie znalazl polepszenia
+                                // nie znalazl polepszenia
                                 temp_solution = best_solution;
                             }
                         }
@@ -510,35 +530,38 @@ int main() {
     const int time = 10; // TU NALEZY ZMIENIC CZAS [SEKUNDY]
     ////////////////////////////////////////////////////////////////////////
 
-    std::thread timerThread([&start_time, &time]() {
-        auto current_time = chrono::steady_clock::now();
-        auto elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+//    std::thread timerThread([&start_time, &time]() {
+//        auto current_time = chrono::steady_clock::now();
+//        auto elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+//
+//        while (elapsed_time <= time) {
+//            cout << "Elapsed time: " << elapsed_time << " seconds." << endl;
+//            std::this_thread::sleep_for(std::chrono::seconds(1));  // Poczekaj 1 sekundę
+//            current_time = chrono::steady_clock::now();
+//            elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
+//        }
+//
+//        cout << "Time limit exceeded." << endl;
+//        exit(0);
+//    });
 
-        while (elapsed_time <= time) {
-            cout << "Elapsed time: " << elapsed_time << " seconds." << endl;
-            std::this_thread::sleep_for(std::chrono::seconds(1));  // Poczekaj 1 sekundę
-            current_time = chrono::steady_clock::now();
-            elapsed_time = chrono::duration_cast<chrono::seconds>(current_time - start_time).count();
-        }
+    ////////////////////////////// WYWOLANIE GRASP /////////////////////////////////////////////////////
+    solution GRASP_solution = singleGRASP(data_set, distance_matrix, time);
+    //solution GRASP_solution = GRASP(data_set, distance_matrix, time);
+    //saveResultsToFile(GRASP_solution); //GRASP_solution jest na biezaco nadpisywane w pliku przy kazdym znalezieniu polepszajacego wyniku
+    //cout << GRASP_solution.truck_no << " " << GRASP_solution.final_distance << endl;
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        cout << "Time limit exceeded." << endl;
-        exit(0);
-    });
+//    /////////////////////////// WYWOLANIE LOCAL SEARCH /////////////////////////////////////////////////
+//    solution LS_solution = localSearch(GRASP_solution, distance_matrix, data_set);
+//    cout << LS_solution.truck_no << " " << LS_solution.final_distance << endl;
+//    saveResultsToFile(LS_solution);
+//    ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    ////////////////////////////// WYWOLANIE GRASP //////////////////////////////
-    solution best_solution = singleGRASP(data_set, distance_matrix, time);
-    //solution best_solution = GRASP(data_set, distance_matrix, time);
-    //saveResultsToFile(best_solution); //best_solution jest na biezaco nadpisywane w pliku przy kazdym znalezieniu polepszajacego wyniku (czyli rzadko)
-    cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
-    /////////////////////////////////////////////////////////////////////////////
-
-    /////////////////////////// WYWOLANIE LOCAL SEARCH //////////////////////////
-    solution updated_solution = localSearch(best_solution, distance_matrix, data_set);
-    cout << updated_solution.truck_no << " " << updated_solution.final_distance << endl;
-    saveResultsToFile(updated_solution);
-    /////////////////////////////////////////////////////////////////////////////
-
-    timerThread.join();
+    //timerThread.join();
+//    cout << "kwiatek";
+//    performShiftMove(GRASP_solution, 2, 3, 0, 1);
+//    cout << "kwiatek";
 
     return 0;
 }
