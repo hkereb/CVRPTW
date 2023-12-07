@@ -19,7 +19,7 @@ const double C = 100;
 const double D = 100;
 const double E = 0.00008;
 
-const double DEMOLISH = 30;
+const double DEMOLISH = 50;
 
 //struktura wierzchołków
 struct vertex {
@@ -53,10 +53,16 @@ struct solution {
     double final_distance; //sumaryczny koszt
     bool acceptable; //czy dopuszczalne
     int customer_no;
+    double cost_f;
 };
 struct by_value {
     inline bool operator() (const vertex& a, const vertex& b) {
         return (a.value < b.value);
+    }
+};
+struct by_window_end {
+    inline bool operator() (const vertex& a, const vertex& b) {
+        return (a.window_end < b.window_end);
     }
 };
 struct possibility {
@@ -229,7 +235,8 @@ solution singleGRASP (const extracted_data& data_set, const vector<vector<double
                            return candidate;
                        }
             );
-            sort(candidate_list.begin(), candidate_list.end(), by_value());
+            //sort(candidate_list.begin(), candidate_list.end(), by_value());
+            sort(candidate_list.begin(), candidate_list.end(), by_window_end());
 
             //wyznaczenie top x% kandydatow z ktorych bedzie losowany kolejny klient
             int top_percent = RCL;
@@ -340,112 +347,113 @@ void initialSaveResultsToFile() {
 
 //////////////////////////////////////////// LOCAL SEARCH ////////////////////////////////////////////////////////////////////////////
 
-bool performExchangeMove(solution& temp_solution, int i, int j, int t_i, int t_j) {
-    if (temp_solution.trucks[t_i].visited[i].vertex_no != 0 && temp_solution.trucks[t_j].visited[j].vertex_no != 0) {
-        swap(temp_solution.trucks[t_i].visited[i], temp_solution.trucks[t_j].visited[j]);
-        return true;
-    }
+//bool performExchangeMove(solution& temp_solution, int i, int j, int t_i, int t_j) {
+//    if (temp_solution.trucks[t_i].visited[i].vertex_no != 0 && temp_solution.trucks[t_j].visited[j].vertex_no != 0) {
+//        swap(temp_solution.trucks[t_i].visited[i], temp_solution.trucks[t_j].visited[j]);
+//        return true;
+//    }
+//
+//    return false;
+//}
+//
+//bool performShiftMove(solution& temp_solution, int it_from, int it_to, int t_from, int t_to) {
+//    int k = it_to;
+//    if (temp_solution.trucks[t_from].visited[it_from].vertex_no != 0 && k < temp_solution.trucks[t_from].visited.size() - 1) { // it_from nie jest magazynem oraz nie wstawiamy go w miejsce magazynu
+//            // dokonaj wstawienia
+//            auto it = std::make_move_iterator(temp_solution.trucks[t_from].visited.begin() + it_from);
+//            auto insertPosition = temp_solution.trucks[t_to].visited.begin() + k;
+//            temp_solution.trucks[t_to].visited.insert(insertPosition, std::make_move_iterator(it), std::make_move_iterator(it + 1));
+//
+//            temp_solution.trucks[t_from].visited.erase(temp_solution.trucks[t_from].visited.begin() + it_from);
+//
+//            // trasa stala sie pusta po zamianie, usuniecie ciezarowki
+//            if (temp_solution.trucks[t_from].visited.empty()) {
+//                temp_solution.trucks.erase(temp_solution.trucks.begin() + t_from);
+//            }
+//
+//            return true;
+//    }
+//
+//    return false;
+//}
+//
+//bool isRouteValid(solution& temp_solution, int starting_index, const vector<vector<double>> distance_matrix, int truck_id, int capacity) {
+//    //czy ciezarowka zdazy do kazdego wierzcholka? (wlacznie z magazynem), czy zgadza sie ilosc towaru?
+//    for (int i = starting_index; i < temp_solution.trucks[truck_id].visited.size(); i++) {
+//        temp_solution.trucks[truck_id].visited[i].current_distance = 0;
+//        vertex previous;
+//        if (i == 0) {
+//            previous.vertex_no = 0;
+//            previous.current_distance = 0;
+//            previous.how_much_left_in_truck = capacity;
+//        }
+//        else {
+//            previous = temp_solution.trucks[truck_id].visited[i - 1];
+//
+//        }
+//        vertex current = temp_solution.trucks[truck_id].visited[i];
+//
+//        if (previous.how_much_left_in_truck < current.commodity_need) {
+//            return false;
+//        }
+//        temp_solution.trucks[truck_id].visited[i].how_much_left_in_truck = previous.how_much_left_in_truck - current.commodity_need;
+//        double temp_distance = previous.current_distance + distance_matrix[previous.vertex_no][current.vertex_no];
+//        if (temp_distance > current.window_end) {
+//            return false;
+//        }
+//        double waiting_time =  max(0.0, current.window_start - temp_distance);
+//        temp_solution.trucks[truck_id].visited[i].current_distance = temp_distance + waiting_time + current.unload_time;
+//    }
+//
+//    return true;
+//}
+//
+//solution localSearch(const solution& init, const vector<vector<double>> distance_matrix, const extracted_data& data_set) {
+//    solution temp_solution = init;
+//    solution best_solution = init;
+//    bool improvement_found = true;
+//
+//    while (improvement_found) {
+//        improvement_found = false;
+//
+//        for (int t_i = 0; t_i < best_solution.trucks.size(); t_i++) {
+//            for (int i = 0; i < best_solution.trucks[t_i].visited.size() - 1; i++) {
+//                for (int t_j = t_i + 1; t_j < best_solution.trucks.size(); t_j++) {
+//                    for (int j = 0; j < best_solution.trucks[t_j].visited.size() - 1; j++) {
+//                        if (t_i != t_j) {
+//                            if (performExchangeMove(temp_solution, i, j, t_i, t_j) ) {
+//                                if (isRouteValid(temp_solution, i, distance_matrix, t_i, data_set.capacity) &&
+//                                    isRouteValid(temp_solution, j, distance_matrix, t_j, data_set.capacity) ) {
+//                                    temp_solution.trucks[t_i].distance = temp_solution.trucks[t_i].visited.back().current_distance;
+//                                    temp_solution.trucks[t_j].distance = temp_solution.trucks[t_j].visited.back().current_distance;
+//                                    temp_solution.final_distance = finalDistance(temp_solution.trucks);
+//                                    temp_solution.truck_no = temp_solution.trucks.size();
+//
+//                                    if (temp_solution.final_distance < best_solution.final_distance) {
+//                                        // znalazl polepszenie
+//                                        best_solution = temp_solution;
+//                                        improvement_found = true;
+//                                        saveResultsToFile(best_solution);
+//                                        //cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
+//                                        break;
+//                                    }
+//                                }
+//                                // nie znalazl polepszenia
+//                                temp_solution = best_solution;
+//                            }
+//                        }
+//                        else {
+//                            break;
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//
+//    return best_solution;
+//}
 
-    return false;
-}
-
-bool performShiftMove(solution& temp_solution, int it_from, int it_to, int t_from, int t_to) {
-    int k = it_to;
-    if (temp_solution.trucks[t_from].visited[it_from].vertex_no != 0 && k < temp_solution.trucks[t_from].visited.size() - 1) { // it_from nie jest magazynem oraz nie wstawiamy go w miejsce magazynu
-            // dokonaj wstawienia
-            auto it = std::make_move_iterator(temp_solution.trucks[t_from].visited.begin() + it_from);
-            auto insertPosition = temp_solution.trucks[t_to].visited.begin() + k;
-            temp_solution.trucks[t_to].visited.insert(insertPosition, std::make_move_iterator(it), std::make_move_iterator(it + 1));
-
-            temp_solution.trucks[t_from].visited.erase(temp_solution.trucks[t_from].visited.begin() + it_from);
-
-            // trasa stala sie pusta po zamianie, usuniecie ciezarowki
-            if (temp_solution.trucks[t_from].visited.empty()) {
-                temp_solution.trucks.erase(temp_solution.trucks.begin() + t_from);
-            }
-
-            return true;
-    }
-
-    return false;
-}
-
-bool isRouteValid(solution& temp_solution, int starting_index, const vector<vector<double>> distance_matrix, int truck_id, int capacity) {
-    //czy ciezarowka zdazy do kazdego wierzcholka? (wlacznie z magazynem), czy zgadza sie ilosc towaru?
-    for (int i = starting_index; i < temp_solution.trucks[truck_id].visited.size(); i++) {
-        temp_solution.trucks[truck_id].visited[i].current_distance = 0;
-        vertex previous;
-        if (i == 0) {
-            previous.vertex_no = 0;
-            previous.current_distance = 0;
-            previous.how_much_left_in_truck = capacity;
-        }
-        else {
-            previous = temp_solution.trucks[truck_id].visited[i - 1];
-
-        }
-        vertex current = temp_solution.trucks[truck_id].visited[i];
-
-        if (previous.how_much_left_in_truck < current.commodity_need) {
-            return false;
-        }
-        temp_solution.trucks[truck_id].visited[i].how_much_left_in_truck = previous.how_much_left_in_truck - current.commodity_need;
-        double temp_distance = previous.current_distance + distance_matrix[previous.vertex_no][current.vertex_no];
-        if (temp_distance > current.window_end) {
-            return false;
-        }
-        double waiting_time =  max(0.0, current.window_start - temp_distance);
-        temp_solution.trucks[truck_id].visited[i].current_distance = temp_distance + waiting_time + current.unload_time;
-    }
-
-    return true;
-}
-
-solution localSearch(const solution& init, const vector<vector<double>> distance_matrix, const extracted_data& data_set) {
-    solution temp_solution = init;
-    solution best_solution = init;
-    bool improvement_found = true;
-
-    while (improvement_found) {
-        improvement_found = false;
-
-        for (int t_i = 0; t_i < best_solution.trucks.size(); t_i++) {
-            for (int i = 0; i < best_solution.trucks[t_i].visited.size() - 1; i++) {
-                for (int t_j = t_i + 1; t_j < best_solution.trucks.size(); t_j++) {
-                    for (int j = 0; j < best_solution.trucks[t_j].visited.size() - 1; j++) {
-                        if (t_i != t_j) {
-                            if (performExchangeMove(temp_solution, i, j, t_i, t_j) ) {
-                                if (isRouteValid(temp_solution, i, distance_matrix, t_i, data_set.capacity) &&
-                                    isRouteValid(temp_solution, j, distance_matrix, t_j, data_set.capacity) ) {
-                                    temp_solution.trucks[t_i].distance = temp_solution.trucks[t_i].visited.back().current_distance;
-                                    temp_solution.trucks[t_j].distance = temp_solution.trucks[t_j].visited.back().current_distance;
-                                    temp_solution.final_distance = finalDistance(temp_solution.trucks);
-                                    temp_solution.truck_no = temp_solution.trucks.size();
-
-                                    if (temp_solution.final_distance < best_solution.final_distance) {
-                                        // znalazl polepszenie
-                                        best_solution = temp_solution;
-                                        improvement_found = true;
-                                        saveResultsToFile(best_solution);
-                                        //cout << best_solution.truck_no << " " << best_solution.final_distance << endl;
-                                        break;
-                                    }
-                                }
-                                // nie znalazl polepszenia
-                                temp_solution = best_solution;
-                            }
-                        }
-                        else {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return best_solution;
-}
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void updateTruckInfoPostRemoval (truck& truck, const vertex& before_to_remove) {
@@ -468,6 +476,9 @@ vector<vertex> partlyDemolishSolution (solution& init) {
                 how_many--;
                 if (how_many == 0) {
                     init.truck_no = init.trucks.size();
+                    if (init.trucks[t].visited.empty()) {
+                        init.trucks.erase(init.trucks.begin() + t);
+                    }
                     return removed;
                 }
             }
@@ -481,102 +492,7 @@ vector<vertex> partlyDemolishSolution (solution& init) {
     }
 }
 
-//solution singleRebuildByGreedy (const solution& incomplete_solution, vector<vertex> removed_vertexes, const extracted_data& data_set, const vector<vector<double>>& distance_matrix) {
-//    solution temp_solution = incomplete_solution;
-//    temp_solution.acceptable = true;
-//
-//    int next_vertex_no;
-//    vertex full_previous_vertex = incomplete_solution.trucks.back().visited.back();
-//    vertex full_next_vertex;
-//
-//    truck current_truck = incomplete_solution.trucks.back();
-//    //    current_truck.distance = full_previous_vertex.current_distance;
-//    //    current_truck.how_much_left = full_previous_vertex.how_much_left_in_truck;
-//    vector<truck> trucks = incomplete_solution.trucks;
-//
-//    vector<vertex> candidate_list = removed_vertexes;
-//    vector<vertex> top_candidates;
-//
-//
-//    int new_truck = 0;
-//
-//    //GREEDY main body
-//    while (!candidate_list.empty()) {
-//        if (candidate_list.size() == 1) {
-//            next_vertex_no = 0; //bo ten jeden ma id 0
-//            full_next_vertex = candidate_list[next_vertex_no];
-//        } else {
-//            //obliczanie miar dobroci wzgledem aktualnego wierzcholka
-//            transform(candidate_list.begin(), candidate_list.end(), candidate_list.begin(),
-//                      [&](vertex &candidate) {
-//                          candidate.value = countValue(distance_matrix, full_previous_vertex, candidate,
-//                                                       current_truck);
-//                          return candidate;
-//                      }
-//            );
-//            sort(candidate_list.begin(), candidate_list.end(), by_value());
-//
-//            next_vertex_no = 0;
-//            full_next_vertex = candidate_list[next_vertex_no];
-//        }
-//
-//        //warunki na zakonczenie pracy aktualnej ciezarowki
-//        if ((distanceSimulation(current_truck, full_previous_vertex, full_next_vertex) +
-//             distance_matrix[full_next_vertex.vertex_no][0]
-//             >
-//             data_set.vertexes[0].window_end) //nie wroci do magazynu po kolejnym wierzcholku (ciezarowka konczy prace, za nia wchodzi kolejna)
-//
-//            || (current_truck.how_much_left <
-//                full_next_vertex.commodity_need) //nie ma wystarczajaco duzo towaru (ciezarowka konczy prace, za nia wchodzi kolejna)
-//
-//            || (current_truck.distance + distance_matrix[full_previous_vertex.vertex_no][full_next_vertex.vertex_no]
-//                >
-//                full_next_vertex.window_end)) { //nie dojedzie do klienta przed zamknieciem okna dostawy (ciezarowka konczy prace, za nia wchodzi kolejna)
-//
-//            if (new_truck > 0) {
-//                cout << "Exited, no feasible solution." << endl;
-//                exit(0);
-//            } else {
-//                new_truck++;
-//                current_truck = updateTruckInfoPostShipment(current_truck, full_previous_vertex,
-//                                                            data_set.vertexes[0]);
-//                next_vertex_no = 0;
-//                full_previous_vertex = data_set.vertexes[0];
-//                trucks.push_back(current_truck);
-//                current_truck.distance = 0.0;
-//                current_truck.how_much_left = data_set.capacity;
-//                current_truck.visited.clear();
-//                continue;
-//            }
-//        }
-//        new_truck = 0;
-//        current_truck = updateTruckInfoPostShipment(current_truck, full_previous_vertex, full_next_vertex);
-//        full_previous_vertex = full_next_vertex;
-//        candidate_list.erase(candidate_list.begin() + next_vertex_no);
-//    }
-//    current_truck = updateTruckInfoPostShipment(current_truck, full_previous_vertex, data_set.vertexes[0]);
-//    trucks.push_back(current_truck); //ostatnia ciezarowka (w przypadku braku klientow)
-//
-//    temp_solution.trucks = trucks;
-//    temp_solution.truck_no = trucks.size();
-//    temp_solution.final_distance = finalDistance(trucks);
-//    temp_solution.acceptable = true;
-//
-//    return temp_solution;
-//}
-//
-//solution rebuildByGreedy (const solution& init, const solution& incomplete_solution, vector<vertex> removed_vertexes, const extracted_data& data_set, const vector<vector<double>>& distance_matrix) {
-//    solution best_solution = init;
-//    for (int i = 0; i < 10; i++) {
-//        solution temp_solution = singleRebuildByGreedy(incomplete_solution, removed_vertexes, data_set, distance_matrix);
-//        if (temp_solution.truck_no < best_solution.truck_no && temp_solution.final_distance < best_solution.final_distance) {
-//            best_solution = temp_solution;
-//        }
-//    }
-//    return best_solution;
-//}
-
-solution singleRebuildByGreedy(const solution& incomplete_solution, vector<vertex> removed_vertexes, const extracted_data& data_set, const vector<vector<double>>& distance_matrix) {
+solution singleRebuildByGreedy(const solution& incomplete_solution, const vector<vertex>& removed_vertexes, const extracted_data& data_set, const vector<vector<double>>& distance_matrix) {
     solution temp_solution = incomplete_solution;
     temp_solution.acceptable = false;
 
@@ -590,13 +506,16 @@ solution singleRebuildByGreedy(const solution& incomplete_solution, vector<verte
 
     vector<vertex> candidate_list = removed_vertexes;
 
+    vector<vertex> top_candidates;
+
     int new_truck = 0;
 
     while (!candidate_list.empty()) {
         if (candidate_list.size() == 1) {
             next_vertex_no = 0; // bo ten jeden ma id 0
             full_next_vertex = candidate_list[next_vertex_no];
-        } else {
+        }
+        else {
             transform(candidate_list.begin(), candidate_list.end(), candidate_list.begin(),
                       [&](vertex& candidate) {
                           candidate.value = countValue(distance_matrix, full_previous_vertex, candidate, current_truck);
@@ -606,10 +525,11 @@ solution singleRebuildByGreedy(const solution& incomplete_solution, vector<verte
             sort(candidate_list.begin(), candidate_list.end(), by_value());
 
             next_vertex_no = 0;
+
+            next_vertex_no = 0;
             full_next_vertex = candidate_list[next_vertex_no];
         }
 
-        // Warunki na zakończenie pracy aktualnej ciężarówki
         if ((distanceSimulation(current_truck, full_previous_vertex, full_next_vertex) +
              distance_matrix[full_next_vertex.vertex_no][0] >
              data_set.vertexes[0].window_end) ||
@@ -656,7 +576,7 @@ solution rebuildByGreedy(const solution& init, const solution& incomplete_soluti
     solution best_solution = init;
     saveResultsToFile(best_solution);
 
-    while(1) {
+    for (int i = 0; i < 1; i++) {
         solution temp_solution = singleRebuildByGreedy(incomplete_solution, removed_vertexes, data_set, distance_matrix);
 
         if (temp_solution.truck_no < best_solution.truck_no || temp_solution.final_distance < best_solution.final_distance) {
@@ -670,7 +590,7 @@ solution rebuildByGreedy(const solution& init, const solution& incomplete_soluti
 
 
 int main() {
-    string filename = "RC2_8_3.txt";
+    string filename = "m2kvrptw-0.txt";
 ///////////////////// LINUX ///////////////////////
 /*int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -683,12 +603,12 @@ int main() {
     auto start_time = chrono::steady_clock::now();  // start pomiaru czasu
 
     initialSaveResultsToFile();
-    cout.precision();
+    cout.precision(10);
     extracted_data data_set = readingData(filename);
     vector<vector<double>> distance_matrix = createDistanceMatrix(data_set);
 
     /////////////////////////////////////////////////////////////////////////
-    const int time = 10; // TU NALEZY ZMIENIC CZAS [SEKUNDY]
+    const int time = 300; // TU NALEZY ZMIENIC CZAS [SEKUNDY]
     ////////////////////////////////////////////////////////////////////////
 
     std::thread timerThread([&start_time, &time]() {
@@ -709,7 +629,7 @@ int main() {
     ////////////////////////////// WYWOLANIE GRASP /////////////////////////////////////////////////////
     solution GRASP_solution = singleGRASP(data_set, distance_matrix);
     //solution GRASP_solution = GRASP(data_set, distance_matrix, time);
-    //saveResultsToFile(GRASP_solution); //GRASP_solution jest na biezaco nadpisywane w pliku przy kazdym znalezieniu polepszajacego wyniku
+    saveResultsToFile(GRASP_solution); //GRASP_solution jest na biezaco nadpisywane w pliku przy kazdym znalezieniu polepszajacego wyniku
     cout << GRASP_solution.truck_no << " " << GRASP_solution.final_distance << endl;
     ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -718,42 +638,20 @@ int main() {
     //cout << LS_solution.truck_no << " " << LS_solution.final_distance << endl;
     //saveResultsToFile(LS_solution);
     ////////////////////////////////////////////////////////////////////////////////////////////////////
-    //solution LS_solution = localSearch(GRASP_solution, distance_matrix, data_set);
-    //cout << LS_solution.truck_no << " " << LS_solution.final_distance << endl;
-    //saveResultsToFile(LS_solution);
-    ////////////////////////////////////////////////////////////////////////////////////////////////////
+
     solution GRASP_og = GRASP_solution;
     vector<vertex> removed = partlyDemolishSolution(GRASP_solution);
     solution REBUILT_solution = rebuildByGreedy(GRASP_og, GRASP_solution, removed, data_set, distance_matrix);
     saveResultsToFile(REBUILT_solution);
+    cout << REBUILT_solution.truck_no << " " << REBUILT_solution.final_distance << endl;
+//
+//    solution LS_solution = localSearch(REBUILT_solution, distance_matrix, data_set);
+//    cout << LS_solution.truck_no << " " << LS_solution.final_distance << endl;
+//    saveResultsToFile(LS_solution);
 
 
 
     timerThread.join();
-//    cout << "kwiatek";
-//    performShiftMove(GRASP_solution, 2, 3, 0, 1);
-//    cout << "kwiatek";
 
     return 0;
 }
-
-
-
-//NOTATKI BY ANTEK V2
-/*Działanie algorytmu pod kryptonionem "PRZESZUKIWANIE LOKALNE":
- * 1. Stwoerzenie sąsiedztwa poprzez sprawdzenie, które wierzchołki można zamienić i czy nie pogorszą one rozwiązania (sąsiedztwo jest osobne dla każdego wierzchołka)
- * 2. Wybór wierzchołka z sąsiedztwa do zamiany
- * 3. Zamiana wierzchołków
- * 4. Zaktualizowanie kosztów trasy
- * 5.(Opcjonalnie) Próba dopasowania pojedyńczych tras do zmodyfikowanych tras
- * 6.
- * 7.
- *
- *
- *
- * WAŻNE:
- * - DODAĆ PĘTLE CZASOWĄ \/
- * - ZAPISYWANIE DO PLIKU PO KAŻDYM POLEPSZENIU \/
- * - ZMIANA CAPACITY - NAPRAWIC \/
- * - PROBA ZMNIEJSZENIA LICZBY UZYWANYCH CIEZAROWEK
- */
